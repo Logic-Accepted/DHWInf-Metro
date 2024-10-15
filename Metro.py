@@ -1,7 +1,7 @@
 import heapq, math, json, requests, os, shutil, argparse
 file_path = "stations.json"  
 tmp_file_path = "stationstmp.json" 
-url = "https://gitee.com/brokenclouds03/dhwinf-metro-stations/raw/master/stations.json" 
+default_url = "https://gitee.com/brokenclouds03/dhwinf-metro-stations/raw/master/stations.json" 
 print_header = "[INF Metro Navigation] "
 # 检查文件是否存在，如果不存在则创建默认文件
 def check_and_create_file(file_path):
@@ -13,37 +13,6 @@ def check_and_create_file(file_path):
         return 0
     else:
         return 1
-
-# 从指定 URL 下载 JSON 并读取 version 信息
-def update_station_data_from_remote(url, local_file, tmp_file_path):
-    try:
-        # 下载 JSON 文件
-        response = requests.get(url)
-        response.raise_for_status()  # 检查请求是否成功
-        
-        # 解析 JSON 数据
-        data = response.json()
-        
-        # 读取 version 字段
-        version = data.get("version")
-        if version is not None:
-            print(print_header + "正在检查更新")
-            check_and_create_file(tmp_file_path)
-            # 保存到本地文件
-            with open(local_file, 'w', encoding='utf-8') as file:
-                json.dump(data, file, ensure_ascii=False, indent=4)
-                # print(f"数据已保存到本地文件: {local_file}")
-                return version
-        else:
-            # print("未找到 version 字段")
-            return float('inf')*-1
-        
-    except requests.RequestException as e:
-        print(print_header + f"请求出错: {e}")
-        return float('inf')*-1
-    except json.JSONDecodeError:
-        print(print_header + "解析 JSON 出错")
-        return float('inf')*-1
 
 # 从本地 JSON 文件读取站点和线路数据
 def load_station_data(file_path):
@@ -69,19 +38,40 @@ def load_station_data(file_path):
         print(print_header + f"文件格式错误: {file_path}")
         return None
 
-# 比较两个版本号，并决定是否覆盖文件
-def update_if_newer(version, version_tmp, local_file, tmp_file):
-    if version_tmp > version:
-        # 用 stationstmp.json 覆盖 stations.json
-        shutil.move(tmp_file, local_file)  # shutil.move 同时完成文件移动和覆盖
-        return 1
-    else:
-        # 删除临时文件
-        if os.path.exists(tmp_file):
-            os.remove(tmp_file)
-            return 0
+# 站点信息远程更新逻辑实现
+def update_station_data(url=default_url):
+    global version, stations, lines, linesCode
+    try:
+        print("正在检查更新")
+        # 下载 JSON 文件
+        response = requests.get(url)
+        response.raise_for_status()  # 检查请求是否成功
+
+        # 解析 JSON 数据
+        data = response.json()
+
+        # 读取 version 字段
+        version_tmp = data.get('version')
+        if version_tmp is None:
+            print("未找到 version 字段")
+            return "更新失败：未找到 version 字段"
+
+        # 比较版本号
+        if version_tmp > version:
+            # 更新本地数据
+            with open(file_path, 'w', encoding='utf-8') as file:
+                json.dump(data, file, ensure_ascii=False, indent=4)
+            version, stations, lines, linesCode = load_station_data(file_path)
+            return f"完成版本更新：{version} -> {version_tmp}。"
         else:
-            return 0
+            return f"当前版本与远程仓库版本一致，版本均为：{version_tmp}。"
+
+    except requests.RequestException as e:
+        print(f"请求出错: {e}")
+        return "更新失败：请求出错"
+    except json.JSONDecodeError:
+        print("解析 JSON 出错")
+        return "更新失败：解析 JSON 出错"
 
 # 计算两个坐标之间的欧氏距离,用于粗略计算步行距离
 def calculate_distance_coords(coord1, coord2):
@@ -98,11 +88,11 @@ def calculate_manhattan_distance(coord1, coord2):
     return distance
 
 # 计算站点间的距离
-def calculate_distance(station1, station2, stations):
+def calculate_distance(station1, station2):
     return calculate_manhattan_distance(stations[station1], stations[station2])
 
 # 根据坐标找到最近的地铁站
-def find_nearest_station(coord, stations):
+def find_nearest_station(coord):
     nearest_station = None
     min_distance = float('inf')
     for station, station_coord in stations.items():
@@ -110,7 +100,7 @@ def find_nearest_station(coord, stations):
         if distance < min_distance:
             min_distance = distance
             nearest_station = station
-    return nearest_station,min_distance
+    return nearest_station, min_distance
 
 # 构建带路线信息的图
 def build_graph(stations, lines):
@@ -119,7 +109,7 @@ def build_graph(stations, lines):
         for i in range(len(line) - 1):
             station1 = line[i]
             station2 = line[i + 1]
-            distance = calculate_distance(station1, station2, stations)
+            distance = calculate_distance(station1, station2)
             # 除了距离外，还要记录该段的线路名称
             graph[station1].append((distance, station2, line_name))
             graph[station2].append((distance, station1, line_name))
@@ -148,7 +138,7 @@ def dijkstra(graph, start, end):
     return None, None, float('inf')
 
 # 判断乘车方向
-def determine_direction(current_station, next_station, line, lines):
+def determine_direction(current_station, next_station, line):
     try:
         current_index = lines[line].index(current_station)
         next_index = lines[line].index(next_station)
@@ -176,14 +166,14 @@ def format_route_output(route, lineList, start_distance, end_distance, total_dis
         if lineList[i - 1] == current_line:
             stationsum += 1
         else:
-            direction = determine_direction(route[i-2], route[i-1], current_line, lines)
+            direction = determine_direction(route[i-2], route[i-1], current_line)
             output.append(f"{first_station}地铁站 \n↓{direction}方向 乘坐{stationsum}站\n{route[i-1]}地铁站 换乘{linesCode[lineList[i-1]][0]}\n ")
             current_line = lineList[i-1]
             first_station = route[i-1]
             stationsum = 1
 
     # 最后一段
-    direction = determine_direction(route[-1-1], route[-1], lineList[-1], lines)
+    direction = determine_direction(route[-1-1], route[-1], lineList[-1])
     output.append(f"{first_station}地铁站 \n↓{direction}方向 乘坐{stationsum}站\n{route[-1]}地铁站\n")
     output.append(f"由{route[-1]}地铁站出站\n↓步行{end_distance:.2f}米\n目的地")
     total_walk_distance = start_distance + end_distance
@@ -199,8 +189,8 @@ def navigate_metro(x_start, z_start, x_des, z_des):
         return "请检查输入数据。"
     graph = build_graph(stations, lines)
     # 找离当前坐标和目的地最近的地铁站
-    start_station, start_distance = find_nearest_station(current_coords, stations)
-    end_station, end_distance = find_nearest_station(destination_coords, stations)
+    start_station, start_distance = find_nearest_station(current_coords)
+    end_station, end_distance = find_nearest_station(destination_coords)
   
     if(start_station != end_station):
         # 计算最短路径
@@ -215,27 +205,12 @@ def navigate_metro(x_start, z_start, x_des, z_des):
     else:
         return "暂无乘车方案。"
 
-# 站点信息远程更新逻辑实现
-def update_station_data(url = url):
-    global version, stations, lines, linesCode
-    version_tmp = update_station_data_from_remote(url, file_path, tmp_file_path)
-    update = update_if_newer(version, version_tmp, file_path, tmp_file_path)
-    if update == 1:
-        version, stations, lines, linesCode = load_station_data(file_path)
-        return f"完成版本更新：{version} -> {version_tmp}。"
-    else: 
-        return f"当前版本与远程仓库版本一致，版本均为：{version_tmp}。"
-
-def first_load(file_path, url, tmp_file_path): 
-    update_station_data_from_remote(url, file_path, tmp_file_path)
-    if os.path.exists(tmp_file_path):
-            os.remove(tmp_file_path)
-    return 0
-
 ###################################################################################
 
-if not os.path.exists(file_path):    
-            first_load(file_path, url, tmp_file_path)
+if not os.path.exists(file_path):
+    update_station_data(default_url)
+    if os.path.exists(tmp_file_path):
+            os.remove(tmp_file_path)
 
 version, stations, lines, linesCode = load_station_data(file_path)
 
@@ -253,7 +228,7 @@ def main():
     parser.add_argument(
         "--update",
         nargs='?',
-        const=url,
+        const=default_url,
         type=str,
         help="更新地铁站数据，可选 URL"
     )
