@@ -1,5 +1,8 @@
 import heapq, math, json, requests, os, shutil, argparse
-
+file_path = "stations.json"  
+tmp_file_path = "stationstmp.json" 
+url = "https://gitee.com/brokenclouds03/dhwinf-metro-stations/raw/master/stations.json" 
+print_header = "[INF Metro Navigation] "
 # 检查文件是否存在，如果不存在则创建默认文件
 def check_and_create_file(file_path):
     if not os.path.exists(file_path):
@@ -24,7 +27,7 @@ def update_station_data_from_remote(url, local_file, tmp_file_path):
         # 读取 version 字段
         version = data.get("version")
         if version is not None:
-            print("正在检查更新")
+            print(print_header + "正在检查更新")
             check_and_create_file(tmp_file_path)
             # 保存到本地文件
             with open(local_file, 'w', encoding='utf-8') as file:
@@ -36,9 +39,11 @@ def update_station_data_from_remote(url, local_file, tmp_file_path):
             return float('inf')*-1
         
     except requests.RequestException as e:
-        print(f"请求出错: {e}")
+        print(print_header + f"请求出错: {e}")
+        return float('inf')*-1
     except json.JSONDecodeError:
-        print("解析 JSON 出错")
+        print(print_header + "解析 JSON 出错")
+        return float('inf')*-1
 
 # 从本地 JSON 文件读取站点和线路数据
 def load_station_data(file_path):
@@ -58,10 +63,10 @@ def load_station_data(file_path):
         
         return version, stations, lines, linesCode
     except FileNotFoundError:
-        print(f"文件未找到: {file_path}")
+        print(print_header + f"文件未找到: {file_path}")
         return None
     except json.JSONDecodeError:
-        print(f"文件格式错误: {file_path}")
+        print(print_header + f"文件格式错误: {file_path}")
         return None
 
 # 比较两个版本号，并决定是否覆盖文件
@@ -191,7 +196,7 @@ def navigate_metro(x_start, z_start, x_des, z_des, graph, lines, linesCode, stat
         current_coords = (x_start, z_start)
         destination_coords = (x_des, z_des)
     except Exception as e:
-        print("请检查输入数据。")
+        return "请检查输入数据。"
 
     # 找离当前坐标和目的地最近的地铁站
     start_station, start_distance = find_nearest_station(current_coords, stations)
@@ -202,23 +207,24 @@ def navigate_metro(x_start, z_start, x_des, z_des, graph, lines, linesCode, stat
         route, lineList, total_distance = dijkstra(graph, start_station, end_station)
         # 格式化输出
         formatted_output = format_route_output(route, lineList, start_distance, end_distance, total_distance, lines, linesCode)
-        print(formatted_output)
+        return formatted_output
     elif(start_distance <= 50):
-        print("当前位置距离目的地距离极近，暂无乘车方案。")
+        return "当前位置距离目的地距离极近，暂无乘车方案。"
     elif(start_distance >= 20000):
-        print("当前位置距离地铁系统极远，暂无乘车方案。")
+        return "当前位置距离地铁系统极远，暂无乘车方案。"
     else:
-        print("暂无乘车方案。")
+        return "暂无乘车方案。"
 
 # 站点信息远程更新逻辑实现
 def update_station_data(url, file_path, tmp_file_path, version):
+    global stations, lines, linesCode
     version_tmp = update_station_data_from_remote(url, file_path, tmp_file_path)
     update = update_if_newer(version, version_tmp, file_path, tmp_file_path)
     if update == 1:
-        print(f"完成版本更新：{version} -> {version_tmp}。")
-        version = version_tmp
+        version, stations, lines, linesCode = load_station_data(file_path)
+        return f"完成版本更新：{version} -> {version_tmp}。"
     else: 
-        print(f"当前版本与远程仓库版本一致，版本均为：{version_tmp}。")    
+        return f"当前版本与远程仓库版本一致，版本均为：{version_tmp}。"
 
 def first_load(file_path, url, tmp_file_path): 
     update_station_data_from_remote(url, file_path, tmp_file_path)
@@ -228,9 +234,12 @@ def first_load(file_path, url, tmp_file_path):
 
 ###################################################################################
 
+if not os.path.exists(file_path):    
+            first_load(file_path, url, tmp_file_path)
+            version, stations, lines, linesCode = load_station_data(file_path)
+
 def main():
     parser = argparse.ArgumentParser(description="DHW Inf地铁导航工具。")
-    version, stations, lines, linesCode = load_station_data(file_path)
 
     parser.add_argument(
         "--metro",
@@ -251,11 +260,11 @@ def main():
     args = parser.parse_args()
     if args.metro:
         x_start, z_start, x_des, z_des = args.metro
-        navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations)
+        print(navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations))
         return
     if args.update:
         update_url = args.update
-        update_station_data(update_url, file_path, tmp_file_path, version)
+        print(update_station_data(update_url, file_path, tmp_file_path, version))
         return
     while True:
         # 如果没有传入 --metro 参数，则手动输入坐标
@@ -265,11 +274,15 @@ def main():
         x_des = int(input("X_DES: "))
         z_des = int(input("Z_DES: "))
         # 执行地铁导航
-        navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations)
+        print(navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations))
+
+def navigate(x_start, z_start, x_des, z_des):
+    x_start = int(x_start)
+    z_start = int(z_start)
+    x_des = int(x_des)
+    z_des = int(z_des)
+    return navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations)
+
 if __name__ == "__main__":
-    file_path = "stations.json"  
-    tmp_file_path = "stationstmp.json" 
-    url = "https://gitee.com/brokenclouds03/dhwinf-metro-stations/raw/master/stations.json" 
-    if not os.path.exists(file_path):    
-            first_load(file_path, url, tmp_file_path)
+    print_header = ""
     main()
