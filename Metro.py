@@ -3,16 +3,7 @@ file_path = "stations.json"
 tmp_file_path = "stationstmp.json" 
 default_url = "https://gitee.com/brokenclouds03/dhwinf-metro-stations/raw/master/stations.json" 
 print_header = "[INF Metro Navigation] "
-# 检查文件是否存在，如果不存在则创建默认文件
-def check_and_create_file(file_path):
-    if not os.path.exists(file_path):
-        # 创建文件并写入默认内容
-        with open(file_path, 'w', encoding='utf-8') as file:
-            json.dump({}, file, ensure_ascii=False, indent=4)
-        #print(f"创建文件: {file_path}")
-        return 0
-    else:
-        return 1
+version = 0
 
 # 从本地 JSON 文件读取站点和线路数据
 def load_station_data(file_path):
@@ -33,16 +24,16 @@ def load_station_data(file_path):
         return version, stations, lines, linesCode
     except FileNotFoundError:
         print(print_header + f"文件未找到: {file_path}")
-        return None
+        return 0, None, None, None
     except json.JSONDecodeError:
         print(print_header + f"文件格式错误: {file_path}")
-        return None
+        return 0, None, None, None
 
 # 站点信息远程更新逻辑实现
 def update_station_data(url=default_url):
     global version, stations, lines, linesCode
     try:
-        print("正在检查更新")
+        print(print_header + "正在检查更新")
         # 下载 JSON 文件
         response = requests.get(url)
         response.raise_for_status()  # 检查请求是否成功
@@ -61,6 +52,7 @@ def update_station_data(url=default_url):
             # 更新本地数据
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
+            print(print_header + f"无本地文件，已下载版本为 {version_tmp} 的数据") if version == 0 else None
             version, stations, lines, linesCode = load_station_data(file_path)
             return f"完成版本更新：{version} -> {version_tmp}。"
         else:
