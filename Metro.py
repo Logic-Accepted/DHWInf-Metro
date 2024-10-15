@@ -145,10 +145,13 @@ def determine_direction(current_station, next_station, line):
         return "parameter error: not move"
 
 # 格式化输出
-def format_route_output(route, lineList, start_distance, end_distance, total_distance, lines, linesCode):
+def format_route_output(route, lineList, start_distance = 0, end_distance = 0, total_distance = None, linesCode = None):
     output = []
     output.append(f"路线为：")
-    output.append(f"当前位置\n↓步行{start_distance:.2f}米\n{route[0]}地铁站 进站\n")
+    if start_distance != 0:
+        output.append(f"当前位置\n↓步行{start_distance:.2f}米\n{route[0]}地铁站 进站\n")
+    else:
+        output.append(f"{route[0]}地铁站 进站\n")
 
     stationsum = 0
     current_line = lineList[0]
@@ -167,28 +170,61 @@ def format_route_output(route, lineList, start_distance, end_distance, total_dis
     # 最后一段
     direction = determine_direction(route[-1-1], route[-1], lineList[-1])
     output.append(f"{first_station}地铁站 \n↓{direction}方向 乘坐{stationsum}站\n{route[-1]}地铁站\n")
-    output.append(f"由{route[-1]}地铁站出站\n↓步行{end_distance:.2f}米\n目的地")
+    if end_distance != 0:
+        output.append(f"由{route[-1]}地铁站出站\n↓步行{end_distance:.2f}米\n目的地")
+    else: 
+        output.append(f"由{route[-1]}地铁站出站")
     total_walk_distance = start_distance + end_distance
-    output.append(f"总计步行距离约{total_walk_distance:.2f}米，乘车约{total_distance:.0f}米。")
+    if total_walk_distance != 0:
+        output.append(f"总计步行距离约{total_walk_distance:.2f}米，乘车约{total_distance:.0f}米。")
+    else:
+        output.append(f"总计乘车约{total_distance:.0f}米。")
     return "\n".join(output)
 
 # 导航逻辑实现
-def navigate_metro(x_start, z_start, x_des, z_des):
-    try:
+def navigate_metro(*args):
+    # 传入四个参数，处理为四个坐标
+    if len(args) == 4:
+        x_start, z_start, x_des, z_des = args
         current_coords = (x_start, z_start)
         destination_coords = (x_des, z_des)
-    except Exception as e:
-        return "请检查输入数据。"
+        start_station, start_distance = find_nearest_station(current_coords)
+        end_station, end_distance = find_nearest_station(destination_coords)
+
+    # 传入两个参数，处理为两个站名
+    elif len(args) == 2 and isinstance(args[0], str) and isinstance(args[1], str):
+        start_station, end_station = args
+        start_distance = 0
+        end_distance = 0
+
+    # 传入三个参数，站名+2坐标
+    elif len(args) == 3 and isinstance(args[0], str):
+        start_station = args[0]
+        x_des, z_des = args[1], args[2]
+        destination_coords = (x_des, z_des)
+        start_distance = 0
+        end_station, end_distance = find_nearest_station(destination_coords)
+
+    # 传入三个参数，2坐标+站名
+    elif len(args) == 3 and isinstance(args[2], str):
+        x_start, z_start = args[0], args[1]
+        end_station = args[2]
+        current_coords = (x_start, z_start)
+        end_distance = 0
+        start_station, start_distance = find_nearest_station(current_coords)
+
+    else:
+        raise ValueError("不支持的参数格式")
+    
+    #构建图
     graph = build_graph(stations, lines)
+    
     # 找离当前坐标和目的地最近的地铁站
-    start_station, start_distance = find_nearest_station(current_coords)
-    end_station, end_distance = find_nearest_station(destination_coords)
-  
     if(start_station != end_station):
         # 计算最短路径
         route, lineList, total_distance = dijkstra(graph, start_station, end_station)
         # 格式化输出
-        formatted_output = format_route_output(route, lineList, start_distance, end_distance, total_distance, lines, linesCode)
+        formatted_output = format_route_output(route, lineList, start_distance, end_distance, total_distance, linesCode)
         return formatted_output
     elif(start_distance <= 50):
         return "当前位置距离目的地距离极近，暂无乘车方案。"
@@ -196,7 +232,53 @@ def navigate_metro(x_start, z_start, x_des, z_des):
         return "当前位置距离地铁系统极远，暂无乘车方案。"
     else:
         return "暂无乘车方案。"
+    
+# 解析 metro 参数，根据内容判断
+def parse_metro_args(metro_args):
+    if len(metro_args) == 4:
+        # 四个数字：X_START Z_START X_DES Z_DES
+        try:
+            x_start = int(metro_args[0])
+            z_start = int(metro_args[1])
+            x_des = int(metro_args[2])
+            z_des = int(metro_args[3])
+            return (x_start, z_start, x_des, z_des)
+        except ValueError:
+            pass  # 如果不能转换成数字，继续检查其他格式
 
+    if len(metro_args) == 2 and isinstance(metro_args[0], str) and isinstance(metro_args[1], str):
+        # 两个字符串，作为起始站和终点站名称
+        start_station = metro_args[0]
+        end_station = metro_args[1]
+        return (start_station, end_station)
+
+    if len(metro_args) == 3:
+        try:
+            # 一个字符串和两个数字
+            if isinstance(metro_args[0], str) and isinstance(int(metro_args[1]), int) and isinstance(int(metro_args[2]), int):
+                start_station = metro_args[0]
+                x_des = int(metro_args[1])
+                z_des = int(metro_args[2])
+                return (start_station, x_des, z_des)
+        except ValueError:
+            pass
+
+        try:
+            # 两个数字和一个字符串
+            if isinstance(int(metro_args[0]), int) and isinstance(int(metro_args[1]), int) and isinstance(metro_args[2], str):
+                x_start = int(metro_args[0])
+                z_start = int(metro_args[1])
+                end_station = metro_args[2]
+                return (x_start, z_start, end_station)
+        except ValueError:
+            pass
+
+    raise ValueError("Invalid --metro input format.")
+
+def liststations(stations):
+    stationlist = [station_name for station_name in stations.keys()]
+    return f"所有地铁站名称如下：{' '.join(stationlist)}"
+ 
 ###################################################################################
 
 if not os.path.exists(file_path):
@@ -211,10 +293,15 @@ def main():
 
     parser.add_argument(
         "--metro",
-        nargs=4,
-        type=int,
-        metavar=('X_START', 'Z_START', 'X_DES', 'Z_DES'),
-        help="输入起点和终点坐标: X_START Z_START X_DES Z_DES"
+        nargs='+',
+        metavar='METRO_ARGS',
+        help="输入起点和终点坐标: 可以是两组坐标，也可以用站名代替任意一组坐标。"
+    )
+
+    parser.add_argument(
+        "--liststation",
+        action="store_true",
+        help="列出所有地铁站名称"
     )
 
     parser.add_argument(
@@ -226,23 +313,40 @@ def main():
     )
     
     args = parser.parse_args()
+    # 解析 metro 可变参数
     if args.metro:
-        x_start, z_start, x_des, z_des = args.metro
-        print(navigate_metro(x_start, z_start, x_des, z_des))
+        try:
+            metro_input = parse_metro_args(args.metro)
+            # 四个参数时使用坐标进行导航
+            if len(metro_input) == 4:
+                x_start, z_start, x_des, z_des = metro_input
+                print(navigate_metro(x_start, z_start, x_des, z_des))
+                return
+            # 两个参数时使用站名进行导航
+            elif len(metro_input) == 2 and isinstance(metro_input[0], str):
+                start_station, end_station = metro_input
+                print(navigate_metro(start_station, end_station))
+                return
+            # 三个参数 起点坐标+终点站
+            elif len(metro_input) == 3 and isinstance(metro_input[2], str):
+                x_start, z_start, end_station = metro_input
+                print(navigate_metro(x_start, z_start, end_station))
+                return
+            # 三个参数 起点站+终点坐标
+            elif len(metro_input) == 3 and isinstance(metro_input[0], str):
+                start_station, x_des, z_des = metro_input
+                print(navigate_metro(start_station, x_des, z_des))
+                return
+        except ValueError as e:
+            print(f"解析 --metro 参数时出错: {e}")
+            return
+    if args.liststation:
+        print(liststations(stations))
         return
     if args.update:
         update_url = args.update
         print(update_station_data(update_url))
         return
-    while True:
-        # 如果没有传入 --metro 参数，则手动输入坐标
-        print("请输入起点和终点坐标 (X_START Z_START X_DES Z_DES)，每个坐标用回车隔开：")
-        x_start = int(input("X_START: "))
-        z_start = int(input("Z_START: "))
-        x_des = int(input("X_DES: "))
-        z_des = int(input("Z_DES: "))
-        # 执行地铁导航
-        print(navigate_metro(x_start, z_start, x_des, z_des))
 
 if __name__ == "__main__":
     print_header = ""
