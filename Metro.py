@@ -191,13 +191,13 @@ def format_route_output(route, lineList, start_distance, end_distance, total_dis
     return "\n".join(output)
 
 # 导航逻辑实现
-def navigate_metro(x_start, z_start, x_des, z_des, graph, lines, linesCode, stations):
+def navigate_metro(x_start, z_start, x_des, z_des):
     try:
         current_coords = (x_start, z_start)
         destination_coords = (x_des, z_des)
     except Exception as e:
         return "请检查输入数据。"
-
+    graph = build_graph(stations, lines)
     # 找离当前坐标和目的地最近的地铁站
     start_station, start_distance = find_nearest_station(current_coords, stations)
     end_station, end_distance = find_nearest_station(destination_coords, stations)
@@ -216,8 +216,8 @@ def navigate_metro(x_start, z_start, x_des, z_des, graph, lines, linesCode, stat
         return "暂无乘车方案。"
 
 # 站点信息远程更新逻辑实现
-def update_station_data(url, file_path, tmp_file_path, version):
-    global stations, lines, linesCode
+def update_station_data(url = url):
+    global version, stations, lines, linesCode
     version_tmp = update_station_data_from_remote(url, file_path, tmp_file_path)
     update = update_if_newer(version, version_tmp, file_path, tmp_file_path)
     if update == 1:
@@ -236,7 +236,8 @@ def first_load(file_path, url, tmp_file_path):
 
 if not os.path.exists(file_path):    
             first_load(file_path, url, tmp_file_path)
-            version, stations, lines, linesCode = load_station_data(file_path)
+
+version, stations, lines, linesCode = load_station_data(file_path)
 
 def main():
     parser = argparse.ArgumentParser(description="DHW Inf地铁导航工具。")
@@ -260,11 +261,11 @@ def main():
     args = parser.parse_args()
     if args.metro:
         x_start, z_start, x_des, z_des = args.metro
-        print(navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations))
+        print(navigate_metro(x_start, z_start, x_des, z_des))
         return
     if args.update:
         update_url = args.update
-        print(update_station_data(update_url, file_path, tmp_file_path, version))
+        print(update_station_data(update_url))
         return
     while True:
         # 如果没有传入 --metro 参数，则手动输入坐标
@@ -274,14 +275,7 @@ def main():
         x_des = int(input("X_DES: "))
         z_des = int(input("Z_DES: "))
         # 执行地铁导航
-        print(navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations))
-
-def navigate(x_start, z_start, x_des, z_des):
-    x_start = int(x_start)
-    z_start = int(z_start)
-    x_des = int(x_des)
-    z_des = int(z_des)
-    return navigate_metro(x_start, z_start, x_des, z_des, build_graph(stations, lines), lines, linesCode, stations)
+        print(navigate_metro(x_start, z_start, x_des, z_des))
 
 if __name__ == "__main__":
     print_header = ""
