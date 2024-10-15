@@ -49,12 +49,13 @@ def update_station_data(url=default_url):
 
         # 比较版本号
         if version_tmp > version:
+            old_version = version
             # 更新本地数据
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
             print(print_header + f"无本地文件，已下载版本为 {version_tmp} 的数据") if version == 0 else None
             version, stations, lines, linesCode = load_station_data(file_path)
-            return f"完成版本更新：{version} -> {version_tmp}。"
+            return f"完成版本更新：{old_version} -> {version}。"
         else:
             return f"当前版本与远程仓库版本一致，版本均为：{version_tmp}。"
 
@@ -183,6 +184,7 @@ def format_route_output(route, lineList, start_distance = 0, end_distance = 0, t
 
 # 导航逻辑实现
 def navigate_metro(*args):
+    args = tuple(map(soft_int_assert, args))
     # 传入四个参数，处理为四个坐标
     if len(args) == 4:
         x_start, z_start, x_des, z_des = args
@@ -214,7 +216,7 @@ def navigate_metro(*args):
         start_station, start_distance = find_nearest_station(current_coords)
 
     else:
-        raise ValueError("不支持的参数格式")
+        return "不支持的参数格式"
     
     #构建图
     graph = build_graph(stations, lines)
@@ -233,49 +235,13 @@ def navigate_metro(*args):
     else:
         return "暂无乘车方案。"
     
-# 解析 metro 参数，根据内容判断
-def parse_metro_args(metro_args):
-    if len(metro_args) == 4:
-        # 四个数字：X_START Z_START X_DES Z_DES
-        try:
-            x_start = int(metro_args[0])
-            z_start = int(metro_args[1])
-            x_des = int(metro_args[2])
-            z_des = int(metro_args[3])
-            return (x_start, z_start, x_des, z_des)
-        except ValueError:
-            pass  # 如果不能转换成数字，继续检查其他格式
+def soft_int_assert(value):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return value
 
-    if len(metro_args) == 2 and isinstance(metro_args[0], str) and isinstance(metro_args[1], str):
-        # 两个字符串，作为起始站和终点站名称
-        start_station = metro_args[0]
-        end_station = metro_args[1]
-        return (start_station, end_station)
-
-    if len(metro_args) == 3:
-        try:
-            # 一个字符串和两个数字
-            if isinstance(metro_args[0], str) and isinstance(int(metro_args[1]), int) and isinstance(int(metro_args[2]), int):
-                start_station = metro_args[0]
-                x_des = int(metro_args[1])
-                z_des = int(metro_args[2])
-                return (start_station, x_des, z_des)
-        except ValueError:
-            pass
-
-        try:
-            # 两个数字和一个字符串
-            if isinstance(int(metro_args[0]), int) and isinstance(int(metro_args[1]), int) and isinstance(metro_args[2], str):
-                x_start = int(metro_args[0])
-                z_start = int(metro_args[1])
-                end_station = metro_args[2]
-                return (x_start, z_start, end_station)
-        except ValueError:
-            pass
-
-    raise ValueError("Invalid --metro input format.")
-
-def liststations(stations):
+def liststations():
     stationlist = [station_name for station_name in stations.keys()]
     return f"所有地铁站名称如下：{' '.join(stationlist)}"
  
@@ -315,31 +281,8 @@ def main():
     args = parser.parse_args()
     # 解析 metro 可变参数
     if args.metro:
-        try:
-            metro_input = parse_metro_args(args.metro)
-            # 四个参数时使用坐标进行导航
-            if len(metro_input) == 4:
-                x_start, z_start, x_des, z_des = metro_input
-                print(navigate_metro(x_start, z_start, x_des, z_des))
-                return
-            # 两个参数时使用站名进行导航
-            elif len(metro_input) == 2 and isinstance(metro_input[0], str):
-                start_station, end_station = metro_input
-                print(navigate_metro(start_station, end_station))
-                return
-            # 三个参数 起点坐标+终点站
-            elif len(metro_input) == 3 and isinstance(metro_input[2], str):
-                x_start, z_start, end_station = metro_input
-                print(navigate_metro(x_start, z_start, end_station))
-                return
-            # 三个参数 起点站+终点坐标
-            elif len(metro_input) == 3 and isinstance(metro_input[0], str):
-                start_station, x_des, z_des = metro_input
-                print(navigate_metro(start_station, x_des, z_des))
-                return
-        except ValueError as e:
-            print(f"解析 --metro 参数时出错: {e}")
-            return
+        print(navigate_metro(*args.metro))
+        return
     if args.liststation:
         print(liststations(stations))
         return
