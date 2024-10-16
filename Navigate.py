@@ -1,4 +1,4 @@
-import Metro, DataFileProcess, math, heapq
+import Metro, math, heapq
 
 # 计算两个坐标之间的欧氏距离,用于粗略计算步行距离
 def calculate_distance_coords(coord1, coord2):
@@ -89,11 +89,7 @@ def soft_int_assert(value):
 # 导航逻辑实现
 def navigate_metro(*args):
     # 通过本地文件读入信息
-    _, stations, lines, linesCode = DataFileProcess.load_station_data(DataFileProcess.file_path)
-    #first_n_minus_one_args = args[:-1]
-    
-    # 最后一个参数
-    #last_arg = args[-1]
+    _, stations, lines, linesCode = Metro.load_station_data(Metro.file_path)
     args = tuple(map(soft_int_assert, args[:-1]))
     # 传入四个参数，处理为四个坐标
     if len(args) == 4:
