@@ -149,28 +149,28 @@ def determine_direction(current_station, next_station, line):
 def format_route_output(route, lineList, start_distance = 0, end_distance = 0, total_distance = None, linesCode = None):
     output = []
     output.append(f"路线为：")
+    current_line = lineList[0]
+    first_station = route[0]
     if start_distance != 0:
         output.append(f"当前位置\n↓步行{start_distance:.2f}米\n{route[0]}地铁站 进站\n")
     else:
-        output.append(f"{route[0]}地铁站 进站\n")
+        output.append(f"{first_station}地铁站 进站\n")
 
     stationsum = 0
-    current_line = lineList[0]
-    first_station = route[0]
 
     for i in range(1, len(route)):
         if lineList[i - 1] == current_line:
             stationsum += 1
         else:
             direction = determine_direction(route[i-2], route[i-1], current_line)
-            output.append(f"{first_station}地铁站 \n↓{direction}方向 乘坐{stationsum}站\n{route[i-1]}地铁站 换乘{linesCode[lineList[i-1]][0]}\n ")
+            output.append(f"{first_station}地铁站 \n↓{linesCode[current_line][0]}{direction}方向 乘坐{stationsum}站\n{route[i-1]}地铁站 换乘{linesCode[lineList[i-1]][0]}\n ")
             current_line = lineList[i-1]
             first_station = route[i-1]
             stationsum = 1
 
     # 最后一段
     direction = determine_direction(route[-1-1], route[-1], lineList[-1])
-    output.append(f"{first_station}地铁站 \n↓{direction}方向 乘坐{stationsum}站\n{route[-1]}地铁站\n")
+    output.append(f"{first_station}地铁站 \n↓{linesCode[current_line][0]}{direction}方向 乘坐{stationsum}站\n{route[-1]}地铁站\n")
     if end_distance != 0:
         output.append(f"由{route[-1]}地铁站出站\n↓步行{end_distance:.2f}米\n目的地")
     else: 
