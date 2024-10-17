@@ -22,7 +22,7 @@ def load_station_data(file_path):
             stations = data['stations']  # 站点坐标
             lines = data['lines'] # 线路连接性信息
             linesCode = data['linesCode']  # 线路代号
-            
+
         return version, stations, lines, linesCode
     except FileNotFoundError:
         print(print_header + f"文件未找到: {file_path}")
@@ -43,17 +43,17 @@ def load_station_data_test(file_path):
         # 提取 stations 数据
         stations = {}
         for station, info in data['stations'].items():
-            coordinates = tuple(info["coordinates"])  # 将坐标列表转换为元组
-            stations[station] = coordinates  # 只保留站名和坐标
+            if info.get("status") == "enable":  # 检查 status 是否为 enable
+                coordinates = tuple(info['coordinates'])  
+                stations[station] = coordinates 
 
         # 提取 lines 数据
         lines = {}
         linesCode = {}
         for line, info in data['lines'].items():
-            lines[line] = info['stations']  # 获取线路的站点信息
-            line_name = info["name"]  # 获取线路名称
-            linesCode[line] = [line_name["zh"], line_name["en"]]  # 使用列表格式
-
+            lines[line] = [station for station in info['stations'] if station in stations]  # 检查 stations 里是否存在这一站
+            line_name = info["name"]  
+            linesCode[line] = [line_name["zh"], line_name["en"]]  
         return version, stations, lines, linesCode
 
     except FileNotFoundError:
@@ -106,7 +106,6 @@ def update_station_data(url=default_url):
 # 列出车站
 def liststations():
     _, stations, *_ = load_station_data(file_path)
-    load_station_data_test(file_path_test)
     stationlist = [station_name for station_name in stations.keys()]
     return f"所有地铁站名称如下：{' '.join(stationlist)}"
 
