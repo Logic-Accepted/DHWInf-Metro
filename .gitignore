@@ -2,3 +2,4 @@ __init__.py
 config.py
 *.json
 __pycache__/
+*.bat
