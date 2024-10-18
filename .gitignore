@@ -3,3 +3,7 @@ config.py
 *.json
 __pycache__/
 *.bat
+
+# Mac OS
+
+.DS_Store
