@@ -1,26 +1,34 @@
-import os, argparse, Navigate, json, requests
+import os
+import argparse
+import Navigate
+import json
+import requests
 
-file_path = "stations.json"  
+from model import MetroMap
+
+file_path = "stations.json"
 file_path_test = "metro_data.json"
-tmp_file_path = "stationstmp.json" 
-default_url = "https://gitee.com/brokenclouds03/dhwinf-metro-stations/raw/master/stations.json" 
+tmp_file_path = "stationstmp.json"
+default_url = "https://gitee.com/brokenclouds03/dhwinf-metro-stations/raw/master/stations.json"
 print_header = "[INF Metro Navigation] "
 version = 0
 
 # 从本地 JSON 文件读取站点和线路数据
+
+
 def load_station_data(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             data = json.load(file)
-        
+
         # 读 version
         version = data.get("version")
-        
+
         # stations数据要给坐标列表转换为元组
         for station, coord in data['stations'].items():
             data['stations'][station] = tuple(coord)
             stations = data['stations']  # 站点坐标
-            lines = data['lines'] # 线路连接性信息
+            lines = data['lines']  # 线路连接性信息
             linesCode = data['linesCode']  # 线路代号
 
         return version, stations, lines, linesCode
@@ -32,11 +40,13 @@ def load_station_data(file_path):
         return 0, None, None, None
 
 # 测试一下新的文件结构
+
+
 def load_station_data_test(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             data = json.load(file)
-        
+
         # 读 version
         version = data.get("version")
 
@@ -44,16 +54,17 @@ def load_station_data_test(file_path):
         stations = {}
         for station, info in data['stations'].items():
             if info.get("status") == "enable":  # 检查 status 是否为 enable
-                coordinates = tuple(info['coordinates'])  
-                stations[station] = coordinates 
+                coordinates = tuple(info['coordinates'])
+                stations[station] = coordinates
 
         # 提取 lines 数据
         lines = {}
         linesCode = {}
         for line, info in data['lines'].items():
-            lines[line] = [station for station in info['stations'] if station in stations]  # 检查 stations 里是否存在这一站
-            line_name = info["name"]  
-            linesCode[line] = [line_name["zh"], line_name["en"]]  
+            lines[line] = [station for station in info['stations']
+                           if station in stations]  # 检查 stations 里是否存在这一站
+            line_name = info["name"]
+            linesCode[line] = [line_name["zh"], line_name["en"]]
         return version, stations, lines, linesCode
 
     except FileNotFoundError:
@@ -89,7 +100,8 @@ def update_station_data(url=default_url):
             # 更新本地数据
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(data, file, ensure_ascii=False, indent=4)
-            print(print_header + f"无本地文件，已下载版本为 {version_tmp} 的数据") if version == 0 else None
+            print(print_header +
+                  f"无本地文件，已下载版本为 {version_tmp} 的数据") if version == 0 else None
             version, stations, lines, linesCode = load_station_data(file_path)
             return f"完成版本更新：{old_version} -> {version}。"
         else:
@@ -101,18 +113,21 @@ def update_station_data(url=default_url):
     except json.JSONDecodeError:
         print("解析 JSON 出错")
         return "更新失败：解析 JSON 出错"
-    
 
-# 列出车站
-def liststations():
-    _, stations, *_ = load_station_data(file_path)
-    stationlist = [station_name for station_name in stations.keys()]
-    return f"所有地铁站名称如下：{' '.join(stationlist)}"
+
+def list_stations(metro_map: MetroMap):
+    print("All stations:")
+    print(' '.join([
+        str(station.name)
+        for station in metro_map.stations.values()
+    ]))
+
 
 if not os.path.exists(file_path):
-        update_station_data(default_url)
-        if os.path.exists(tmp_file_path):
-                os.remove(tmp_file_path)
+    update_station_data(default_url)
+    if os.path.exists(tmp_file_path):
+        os.remove(tmp_file_path)
+
 
 def main():
     parser = argparse.ArgumentParser(description="DHW Inf地铁导航工具。")
@@ -137,19 +152,36 @@ def main():
         type=str,
         help="更新地铁站数据，可选 URL"
     )
-    
+
+    # metro_map = MetroMap.from_dict(json.load(f))
+
+    # Try loading from local data
+    try:
+        with open(file_path, 'r') as f:
+            metro_map = MetroMap.from_dict(json.load(f))
+    except FileNotFoundError:
+        print("File not found")
+        metro_map = None
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        metro_map = None
+
     args = parser.parse_args()
     # 解析 metro 可变参数
     if args.metro:
         print(Navigate.navigate_metro(*args.metro, file_path))
         return
     if args.liststation:
-        print(liststations())
+        if metro_map:
+            list_stations(metro_map)
+        else:
+            print("No metro map loaded")
         return
     if args.update:
         update_url = args.update
         print(update_station_data(update_url))
         return
+
 
 if __name__ == "__main__":
     print_header = ""
