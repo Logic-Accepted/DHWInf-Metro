@@ -170,7 +170,7 @@ class Line:
 
             def cross_prod(a: Coord2D, b: Coord2D):
                 """x cross z = -y"""
-                return a.x * b.z - a.z * b.x
+                return a.z * b.x - a.x * b.z
             area = 0
             for i in range(len(stations) - 1):
                 area += cross_prod(
