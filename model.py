@@ -140,22 +140,36 @@ class Line:
                 for id in line["stations"]
                 if id in stations
             ]
-            if len(stations) == 0:
-                raise ValueError(f"No stations in line `{id}`")
-            for i in range(len(stations) - 1):
-                station1 = station_ids[i]
-                station2 = station_ids[i + 1]
-                routes[(station1, station2)] = True
-            if line.get("circle", False):
-                station1 = station_ids[0]
-                station2 = station_ids[-1]
-                routes[(station1, station2)] = True
+            routes = cls.routes_from_list(
+                station_ids=station_ids,
+                circular=line.get("circle", False)
+            )
             return cls(
                 id=id,
                 stations=stations,
                 routes=routes,
                 name=L10nDict.from_dict(line["name"])
             )
+
+    @classmethod
+    def routes_from_list(
+        cls,
+        station_ids: list[str],
+        circular: bool = False
+    ) -> Dict[Tuple[str, str], bool]:
+        """
+        Notice: no station bank check
+        """
+        routes = {}
+        for i in range(len(station_ids) - 1):
+            station1 = station_ids[i]
+            station2 = station_ids[i + 1]
+            routes[(station1, station2)] = True
+        if circular:
+            station1 = station_ids[0]
+            station2 = station_ids[-1]
+            routes[(station1, station2)] = True
+        return routes
 
 
 @dataclass
@@ -191,7 +205,6 @@ class MetroMap:
     version: MapVersion
     stations: StationBank
     lines: Dict[str, Line]
-    """Deprecated"""
 
     @classmethod
     def from_dict(cls, data: dict) -> MetroMap:
@@ -201,8 +214,31 @@ class MetroMap:
         version = MapVersion.from_str(version)
         format_ver = version.format_ver
         if format_ver == 1:
-            # 没找到捏
-            raise NotImplementedError("Format version 1 is not supported")
+            stations = data["stations"]
+            stations = {
+                id: Station(id, Coord2D(*coord), name=L10nDict(zh=id))
+                for id, coord in stations.items()
+            }
+            raw_lines = data["lines"]
+            line_ids = data["linesCode"]
+            lines = {
+                id: Line(
+                    id=id,
+                    stations=stations,
+                    routes=Line.routes_from_list([
+                        station
+                        for station in raw_lines[id]
+                        if station in stations
+                    ]),
+                    name=L10nDict(zh=line_ids[id][0], en=line_ids[id][1])
+                )
+                for id in line_ids
+            }
+            return cls(
+                version=version,
+                stations=stations,
+                lines=lines
+            )
         elif format_ver == 2:
             stations = data["stations"]
             stations = {
