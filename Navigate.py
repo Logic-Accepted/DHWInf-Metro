@@ -101,9 +101,9 @@ def soft_int_assert(value):
         return value
 
 # 导航逻辑实现
-def navigate_metro_test(*args):
+def navigate_metro(*args):
     # 通过本地文件读入信息
-    _, stations, lines = Metro.load_metro_data(Metro.file_path_test)
+    _, stations, lines = Metro.load_metro_data(Metro.file_path)
     args = tuple(map(soft_int_assert, args[:-1]))
     # 传入四个参数，处理为四个坐标
     if len(args) == 4:
