@@ -130,7 +130,7 @@ def main():
     args = parser.parse_args()
     # 解析 metro 可变参数
     if args.metro:
-        print(Navigate.navigate_metro(*args.metro, file_path))
+        print(navigate.navigate_metro(*args.metro, file_path))
         return
     if args.liststation:
         if metro_map:
