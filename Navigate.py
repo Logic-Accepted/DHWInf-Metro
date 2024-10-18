@@ -14,29 +14,41 @@ def calculate_manhattan_distance(coord1, coord2):
     distance = abs(x1 - x2) + abs(z1 - z2)
     return distance
 
-# 计算站点间的距离
-def calculate_distance(stations, station1, station2):
-    return calculate_manhattan_distance(stations[station1], stations[station2])
+# 计算站点间的距离 新文件结构
+def calculate_distance_bewteen_station(stations, station1, station2):
+    return calculate_manhattan_distance(stations[station1]['coordinates'], stations[station2]['coordinates'])
 
 # 根据坐标找到最近的地铁站
 def find_nearest_station(coord, stations):
     nearest_station = None
     min_distance = float('inf')
     for station, station_coord in stations.items():
-        distance = calculate_distance_coords(coord, station_coord)
+        distance = calculate_distance_coords(coord, tuple(station_coord['coordinates']))
         if distance < min_distance:
             min_distance = distance
             nearest_station = station
     return nearest_station, min_distance
 
-# 构建带路线信息的图
+# 构建图图
 def build_graph(stations, lines):
-    graph = {station: [] for station in stations}
-    for line_name, line in lines.items():  # 加入线路名称
+    # 搞不懂 先用之前的 这两坨是转换成之前的 stations-stationlist lines-linesinfo linseCode-linescode
+    stationlist = {}
+    for station, info in stations.items():
+        if info.get("status") == "enable":  # 检查 status 是否为 enable
+            coordinates = tuple(info['coordinates'])  
+            stationlist[station] = coordinates 
+    linesinfo = {}
+    linescode = {}
+    for line, info in lines.items():
+        linesinfo[line] = [station for station in info['stations'] if station in stationlist]  # 检查 stations 里是否存在这一站
+        line_name = info["name"]  
+        linescode[line] = [line_name["zh"], line_name["en"]]  
+    graph = {station: [] for station in stationlist}
+    for line_name, line in linesinfo.items():  # 加入线路名称
         for i in range(len(line) - 1):
             station1 = line[i]
             station2 = line[i + 1]
-            distance = calculate_distance(stations, station1, station2)
+            distance = calculate_distance_bewteen_station(stations, station1, station2)
             # 除了距离外，还要记录该段的线路名称
             graph[station1].append((distance, station2, line_name))
             graph[station2].append((distance, station1, line_name))
@@ -67,15 +79,17 @@ def dijkstra(graph, start, end):
 # 判断乘车方向
 def determine_direction(current_station, next_station, line, lines):
     try:
-        current_index = lines[line].index(current_station)
-        next_index = lines[line].index(next_station)
+        # 获取当前线路的站点列表
+        stations = lines[line]['stations']
+        current_index = stations.index(current_station)
+        next_index = stations.index(next_station)
     except ValueError:
         return "parameter error: station not on line"
 
     if next_index > current_index:
-        return lines[line][-1]  # 终点站方向
+        return stations[-1]  # 终点站方向
     elif next_index < current_index:
-        return lines[line][0]  # 起点站方向
+        return stations[0]  # 起点站方向
     else:
         return "parameter error: not move"
 
@@ -87,9 +101,9 @@ def soft_int_assert(value):
         return value
 
 # 导航逻辑实现
-def navigate_metro(*args):
+def navigate_metro_test(*args):
     # 通过本地文件读入信息
-    _, stations, lines, linesCode = Metro.load_station_data(Metro.file_path)
+    _, stations, lines = Metro.load_metro_data(Metro.file_path_test)
     args = tuple(map(soft_int_assert, args[:-1]))
     # 传入四个参数，处理为四个坐标
     if len(args) == 4:
@@ -132,7 +146,7 @@ def navigate_metro(*args):
         # 计算最短路径
         route, lineList, total_distance = dijkstra(graph, start_station, end_station)
         # 格式化输出
-        formatted_output = format_route_output(route, lineList, start_distance, end_distance, total_distance, linesCode, lines)
+        formatted_output = format_route_output(route, lineList, start_distance, end_distance, total_distance, lines)
         return formatted_output
     elif(start_distance <= 50):
         return "当前位置距离目的地距离极近，暂无乘车方案。"
@@ -142,7 +156,7 @@ def navigate_metro(*args):
         return "暂无乘车方案。"
     
 # 格式化输出
-def format_route_output(route, lineList, start_distance = 0, end_distance = 0, total_distance = None, linesCode = None, lines = None):
+def format_route_output(route, lineList, start_distance = 0, end_distance = 0, total_distance = None, lines = None):
     output = []
     output.append(f"路线为：")
     current_line = lineList[0]
@@ -159,14 +173,14 @@ def format_route_output(route, lineList, start_distance = 0, end_distance = 0, t
             stationsum += 1
         else:
             direction = determine_direction(route[i-2], route[i-1], current_line, lines)
-            output.append(f"{first_station}地铁站 \n↓{linesCode[current_line][0]}{direction}方向 乘坐{stationsum}站\n{route[i-1]}地铁站 换乘{linesCode[lineList[i-1]][0]}\n ")
+            output.append(f"{first_station}地铁站 \n↓{lines[current_line]['name']['zh']}{direction}方向 乘坐{stationsum}站\n{route[i-1]}地铁站 换乘{lines[lineList[i-1]]['name']['zh']}\n ")
             current_line = lineList[i-1]
             first_station = route[i-1]
             stationsum = 1
 
     # 最后一段
     direction = determine_direction(route[-1-1], route[-1], lineList[-1], lines)
-    output.append(f"{first_station}地铁站 \n↓{linesCode[current_line][0]}{direction}方向 乘坐{stationsum}站\n{route[-1]}地铁站\n")
+    output.append(f"{first_station}地铁站 \n↓{lines[current_line]['name']['zh']}{direction}方向 乘坐{stationsum}站\n{route[-1]}地铁站\n")
     if end_distance != 0:
         output.append(f"由{route[-1]}地铁站出站\n↓步行{end_distance:.2f}米\n目的地")
     else: 
