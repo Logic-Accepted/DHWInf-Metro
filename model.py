@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from logging import warning
-from typing import Any, Literal, Dict, Tuple
+from typing import Any, Callable, List, Literal, Dict, Tuple
 
 L10N_LANG = "zh"
+
+
+DistanceMode = Literal["euclidean", "manhattan"]
 
 
 class L10nDict(dict):
@@ -37,27 +40,30 @@ class Coord2D:
     """
 
     x: int
-    y: int
+    z: int
+
+    def __str__(self) -> str:
+        return f"({self.x}, {self.z})"
 
     @property
     def distance(self) -> float:
         """Euclidean distance"""
-        return (self.x ** 2 + self.y ** 2) ** 0.5
+        return (self.x ** 2 + self.z ** 2) ** 0.5
 
     def distance_to(
             self,
             other: Coord2D,
-            mode: Literal["euclidean", "manhattan"] = "mahanattan"
+            mode: DistanceMode = "manhattan"
     ) -> float:
         if mode == "euclidean":
-            return ((self.x - other.x) ** 2 + (self.y - other.y) ** 2) ** 0.5
+            return ((self.x - other.x) ** 2 + (self.z - other.z) ** 2) ** 0.5
         elif mode == "manhattan":
-            return abs(self.x - other.x) + abs(self.y - other.y)
+            return abs(self.x - other.x) + abs(self.z - other.z)
         else:
             raise ValueError(f"Invalid mode `{mode}`")
 
     def __sub__(self, other: Coord2D) -> Coord2D:
-        return Coord2D(self.x - other.x, self.y - other.y)
+        return Coord2D(self.x - other.x, self.z - other.z)
 
     @classmethod
     def deserialize(cls, data: Tuple[int, int]) -> Coord2D:
@@ -77,6 +83,19 @@ class Station:
     """还没写捏"""
     exits = []
     """还没写捏"""
+
+    def __hash__(self) -> int:
+        return hash(self.id)
+
+    def __eq__(self, other: Station) -> bool:
+        return self.id == other.id
+
+    def __str__(self) -> str:
+        return f"{self.name} {self.location}"
+
+    def distance_to(self, other: Station) -> float:
+        """用 Manhattan 距离"""
+        return self.location.distance_to(other.location, mode="manhattan")
 
     @classmethod
     def deserialize(cls, data: Any, format_version: int) -> Station:
@@ -115,6 +134,65 @@ class Line:
     """
     name: L10nDict
 
+    @property
+    def navi_graph(self) -> NaviGraph:
+        routes = {}
+        for r, available in self.routes.items():
+            if not available:
+                continue
+            id1, id2 = r
+            if id1 not in routes:
+                routes[id1] = {id2: 1}
+            else:
+                routes[id1][id2] = 1
+            if id2 not in routes:
+                routes[id2] = {id1: 1}
+            else:
+                routes[id2][id1] = 1
+        return NaviGraph(
+            routes=routes,
+            nodes=self.stations
+        )
+
+    def find_dir(
+        self,
+        *stations,
+    ) -> str:
+        graph = self.navi_graph
+        if graph.routes.get(stations[0].id, {}).get(stations[-1].id, 0) == 1:
+            if len(stations) == 1:
+                return "Unknown"
+            # 环线
+            # +--> +x
+            # |
+            # v
+            # +z
+
+            def cross_prod(a: Coord2D, b: Coord2D):
+                """x cross z = -y"""
+                return a.x * b.z - a.z * b.x
+            area = 0
+            for i in range(len(stations) - 1):
+                area += cross_prod(
+                    self.stations[stations[i].id].location,
+                    self.stations[stations[i + 1].id].location
+                )
+            if area > 0:
+                return "外环"
+            return "内环"
+        new_nodes = [
+            station
+            for station in map(
+                self.stations.get, graph.routes[stations[-1].id])
+            if station not in stations
+        ]
+        if len(new_nodes) == 0:
+            return str(stations[-1].name)
+        return '/'.join(map(
+            lambda x: self.find_dir(*stations, x),
+            new_nodes
+        ))
+
     @classmethod
     def deserialize(
         cls,
@@ -140,10 +218,18 @@ class Line:
                 for id in line["stations"]
                 if id in stations
             ]
+            circular = line.get("circle", False)
+            if type(circular) is str:
+                circular = circular.lower() in ["true", "yes", "1"]
             routes = cls.routes_from_list(
                 station_ids=station_ids,
-                circular=line.get("circle", False)
+                circular=circular,
             )
+            routes = {
+                (id1, id2): available
+                for (id1, id2), available in routes.items()
+                if id1 in stations and id2 in stations
+            }
             return cls(
                 id=id,
                 stations=stations,
@@ -201,6 +287,68 @@ class MapVersion:
 
 
 @dataclass
+class NaviGraph:
+    routes: Dict[str, Dict[str, float]]
+    """`table[id1][id2]` 为 1 到 2 的 weight"""
+    nodes: StationBank
+
+    def find_route(
+        self,
+        start: Station,
+        end: Station,
+        heuristic_weight: float = 1.0
+    ) -> Tuple[List[Station], float]:
+        """
+        寻找最短路径, 既然是地铁站那用 astar 吧
+
+        启发函数: 两点间的曼哈顿距离
+        """
+        res = []
+        if start == end:
+            return res, 0
+        open_set = {start}
+        closed_set = set()
+        g_score = {id: float("inf") for id in self.nodes}
+        g_score[start.id] = 0
+        f_score = {id: float("inf") for id in self.nodes}
+        f_score[start.id] = start.location.distance_to(end.location)
+        # Copilot generated A* algorithm, modified
+        # TODO: more tests
+        while len(open_set) > 0:
+            current = min(
+                open_set,
+                key=lambda x: f_score[x.id]
+            )
+            res.append(current)
+            open_set.remove(current)
+            closed_set.add(current)
+            if current == end:
+                while current in res:
+                    res.remove(current)
+                res.append(current)
+                return res, g_score[end.id]
+            no_avail_neighbors = True
+            for neighbor_id in self.routes[current.id]:
+                neighbor = self.nodes[neighbor_id]
+                if neighbor in closed_set:
+                    continue
+                no_avail_neighbors = False
+                tentative_g_score = g_score[current.id] + \
+                    self.routes[current.id][neighbor_id]
+                if neighbor not in open_set:
+                    open_set.add(neighbor)
+                elif tentative_g_score >= g_score[neighbor_id]:
+                    continue
+                g_score[neighbor_id] = tentative_g_score
+                f_score[neighbor_id] = g_score[neighbor_id] + \
+                    heuristic_weight * \
+                    neighbor.location.distance_to(end.location)
+            if no_avail_neighbors:
+                res.remove(current)
+        return res, g_score[end.id]
+
+
+@dataclass
 class MetroMap:
     """
     地铁图
@@ -208,6 +356,55 @@ class MetroMap:
     version: MapVersion
     stations: StationBank
     lines: Dict[str, Line]
+
+    @property
+    def navi_graph(self):
+        """
+        导航图
+        """
+        nodes = self.stations
+        routes = {}
+        for line in self.lines.values():
+            for r, available in line.routes.items():
+                if not available:
+                    continue
+                id1, id2 = r
+                if id1 not in routes:
+                    routes[id1] = {
+                        id2: nodes[id1].distance_to(nodes[id2])
+                    }
+                else:
+                    routes[id1][id2] = nodes[id1].distance_to(nodes[id2])
+                if id2 not in routes:
+                    routes[id2] = {
+                        id1: nodes[id2].distance_to(nodes[id1])
+                    }
+                else:
+                    routes[id2][id1] = nodes[id2].distance_to(nodes[id1])
+        return NaviGraph(routes=routes, nodes=nodes)
+
+    def find_nearest_station(
+        self,
+        location: Coord2D,
+        distance_mode: DistanceMode = "manhattan",
+        filter: Callable[[Station], bool] = lambda _: True
+    ) -> Tuple[Station | None, float]:
+        """
+        `filter` 留给之后筛选非匿名站点用的
+        """
+        nearest = None
+        nearest_distance = float("inf")
+        for station in self.stations.values():
+            if not filter(station):
+                continue
+            distance = location.distance_to(
+                station.location,
+                mode=distance_mode,
+            )
+            if distance < nearest_distance:
+                nearest = station
+                nearest_distance = distance
+        return nearest, nearest_distance
 
     @classmethod
     def from_dict(cls, data: dict) -> MetroMap:

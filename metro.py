@@ -15,6 +15,15 @@ version = 0
 MAP = None
 
 
+def load_metro_data(file_path=file_path) -> MetroMap:
+    """
+    Will raise exceptions
+    """
+    with open(file_path, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+        return MetroMap.from_dict(data)
+
+
 def update_metro_data(url=metro_data_url):
     """新格式文件的更新"""
 
@@ -32,9 +41,7 @@ def update_metro_data(url=metro_data_url):
 
         # 比较版本号
         try:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                local_data = json.load(file)
-                local_data = MetroMap.from_dict(local_data)
+            local_data = load_metro_data()
         except Exception as e:
             print(f"An error occurred: {e}")
             local_data = None
@@ -42,6 +49,9 @@ def update_metro_data(url=metro_data_url):
         if local_data is None:
             print(print_header +
                   f"无本地文件，已下载版本为 {remote_data.version} 的数据")
+            with open(file_path, 'w', encoding='utf-8') as file:
+                json.dump(remote_data_raw, file, ensure_ascii=False, indent=4)
+            MAP = remote_data
             return "无本地文件，已下载最新数据。"
         if remote_data.version.data_ver > local_data.version.data_ver:
             # 更新本地数据
@@ -110,8 +120,7 @@ def main():
 
     # Try loading from local data
     try:
-        with open(file_path, 'r') as f:
-            metro_map = MetroMap.from_dict(json.load(f))
+        metro_map = load_metro_data()
     except FileNotFoundError:
         print("File not found")
         metro_map = None
