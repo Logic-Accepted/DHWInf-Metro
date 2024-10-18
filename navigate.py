@@ -122,13 +122,13 @@ def format_route_output(
         l, d, c = route_lines[i]
         next_l = route_lines[i + 1][0]
         output.append(
-            f"{first_station.name} 地铁站 \n↓ {l.name['zh']} {d} 方向 乘坐 {c} 站\n"
-            f"{route[i-1]} 地铁站 换乘 {next_l.name['zh']}\n"
+            f"{first_station.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n"
+            f"{route[i-1]} 地铁站 换乘 {next_l.name}\n"
         )
 
     l, d, c = route_lines[-1]
     output.append(
-        f"{first_station.name} 地铁站 \n↓ {l.name['zh']} {d} 方向 乘坐 {c} 站\n"
+        f"{first_station.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n"
         f"{dest.name} 地铁站\n"
     )
 
