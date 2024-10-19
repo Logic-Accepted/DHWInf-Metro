@@ -64,7 +64,7 @@ def update_metro_data(url=metro_data_url):
                 json.dump(remote_data_raw, file, ensure_ascii=False, indent=4)
             MAP = remote_data
             return (f"完成版本更新：{local_data.version}"
-                    " -> {remote_data.version}。")
+                    f" -> {remote_data.version}。")
         else:
             return ("当前版本与远程仓库版本一致，"
                     f"版本均为：{remote_data.version}。")
