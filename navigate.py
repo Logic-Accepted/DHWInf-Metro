@@ -27,13 +27,15 @@ def navigate_metro(*args):
             destination_coords)
 
     # 传入两个参数，处理为两个站名
-    elif len(args) == 2 and isinstance(args[0], str) \
-            and isinstance(args[1], str):
+    elif len(args) == 2:
         start_station, end_station = args
-        start_station = data.stations[start_station]
-        end_station = data.stations[end_station]
-        start_distance = 0
-        end_distance = 0
+        if type(start_station) is str and type(end_station) is str:
+            start_station = data.stations[start_station]
+            end_station = data.stations[end_station]
+            start_distance = 0
+            end_distance = 0
+        else:
+            return "不支持的参数格式"
 
     # 传入三个参数，站名+2坐标
     elif len(args) == 3 and isinstance(args[0], str):
@@ -57,6 +59,11 @@ def navigate_metro(*args):
 
     else:
         return "不支持的参数格式"
+
+    if start_station is None:
+        return f"未知的起点站 {start_station}"
+    if end_station is None:
+        return f"未知的终点站 {end_station}"
 
     nodes, distance = data.navi_graph.find_route(start_station, end_station)
 

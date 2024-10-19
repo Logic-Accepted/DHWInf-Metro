@@ -73,17 +73,18 @@ def update_metro_data(url=metro_data_url):
 
 
 def list_stations(metro_map: MetroMap) -> str:
-    res = ""
-    res += "已启用的地铁站如下:", ' '.join([
+    res: str = ""
+    res += "已启用的地铁站如下:" + ' '.join([
         str(station.name)
         for station in metro_map.stations.values()
         if station.status == "enabled"
     ])
-    res += "未启用的地铁站:", ' '.join([
+    res += "未启用的地铁站:" + ' '.join([
         str(station.name)
         for station in metro_map.stations.values()
         if station.status == "disabled"
     ])
+    return res
 
 
 if not os.path.exists(file_path):

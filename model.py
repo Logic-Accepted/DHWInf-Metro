@@ -8,6 +8,7 @@ L10N_LANG = "zh"
 
 
 DistanceMode = Literal["euclidean", "manhattan"]
+Number = int | float
 
 
 class L10nDict(dict):
@@ -39,8 +40,8 @@ class Coord2D:
     二维坐标
     """
 
-    x: int
-    z: int
+    x: Number
+    z: Number
 
     def __str__(self) -> str:
         return f"({self.x}, {self.z})"
@@ -66,7 +67,7 @@ class Coord2D:
         return Coord2D(self.x - other.x, self.z - other.z)
 
     @classmethod
-    def deserialize(cls, data: Tuple[int, int]) -> Coord2D:
+    def deserialize(cls, data: Tuple[Number, Number]) -> Coord2D:
         return cls(*data)
 
 
@@ -112,6 +113,7 @@ class Station:
                 status=status,
                 name=L10nDict.from_dict(station["name"]),
             )
+        raise ValueError(f"Invalid format version `{format_version}`")
 
 
 StationBank = Dict[str, Station]
@@ -236,6 +238,7 @@ class Line:
                 routes=routes,
                 name=L10nDict.from_dict(line["name"])
             )
+        raise ValueError(f"Invalid format version `{format_version}`")
 
     @classmethod
     def routes_from_list(
@@ -269,8 +272,7 @@ class MapVersion:
 
     @classmethod
     def from_str(cls, data: str | float) -> MapVersion:
-        if type(data) is float:
-            data = str(data)
+        data = str(data)
         format_ver, data = data.split(".", maxsplit=1)
         format_ver = int(format_ver)
         data_ver, *data_suffix = data.split("-", maxsplit=1)
@@ -385,7 +387,7 @@ class MetroMap:
 
     def find_nearest_station(
         self,
-        location: Coord2D,
+        location: Coord2D | Tuple[Number, Number],
         distance_mode: DistanceMode = "manhattan",
         filter: Callable[[Station], bool] = lambda _: True
     ) -> Tuple[Station | None, float]:
@@ -397,6 +399,8 @@ class MetroMap:
         for station in self.stations.values():
             if not filter(station):
                 continue
+            if isinstance(location, tuple):
+                location = Coord2D(*location)
             distance = location.distance_to(
                 station.location,
                 mode=distance_mode,
@@ -455,6 +459,7 @@ class MetroMap:
                 stations=stations,
                 lines=lines
             )
+        raise ValueError(f"Invalid format version `{format_ver}`")
 
 
 if __name__ == "__main__":
