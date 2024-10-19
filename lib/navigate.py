@@ -1,7 +1,7 @@
 import logging
 from typing import List, Tuple
-import metro
-from model import Line, MetroMap, Station
+from .metro import load_metro_data, MAP
+from .model import Line, MetroMap, Station
 
 
 logger = logging.getLogger(__name__)
@@ -18,9 +18,9 @@ def soft_int_assert(value):
 
 
 def navigate_metro(*args):
-    if metro.MAP is None:
-        metro.load_metro_data()
-    data = metro.MAP
+    if MAP is None:
+        load_metro_data()
+    data = MAP
     args = tuple(map(soft_int_assert, args[:]))
     # 传入四个参数，处理为四个坐标
     if len(args) == 4:

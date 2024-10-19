@@ -1,4 +1,4 @@
-## This file is part of himibot.
+# This file is part of himibot.
 # For other plugins and more information, please visit:
 # https://github.com/doodlehuang/himibot
 
@@ -10,8 +10,8 @@ from nonebot.adapters import Message
 from himibot.plugins.keep_safe import is_banned
 
 from .config import Config
-from .metro import update_metro_data, list_stations
-from .navigate import navigate_metro
+from .lib.metro import update_metro_data, list_stations
+from .lib.navigate import navigate_metro
 
 __plugin_meta__ = PluginMetadata(
     name="inf-metro",
@@ -21,24 +21,29 @@ __plugin_meta__ = PluginMetadata(
 )
 
 config = get_plugin_config(Config)
+
+
 def safe_int_assert(value):
     try:
         assertion = int(value)
         return True
     except (ValueError, TypeError):
         return False
-    
+
+
 def soft_int_assert(value):
     try:
         return int(value)
     except (ValueError, TypeError):
         return value
-    
+
+
 metro = CommandGroup('metro')
 metro_help = metro.command('help')
 metro_default = metro.command(tuple())
 metro_update = metro.command('update', permission=SUPERUSER)
 metro_liststations = metro.command('liststations', aliases={'metro ls'})
+
 
 @metro_help.handle()
 async def handle(bot, event):
@@ -50,6 +55,7 @@ async def handle(bot, event):
                             '更新站点数据（机器人管理员）：\n:metro update (url) \n'
                             '\n所有命令中，方括号内的内容表示必选参数，括号内的内容表示可选参数。')
 
+
 @metro_default.handle()
 async def handle(bot, event, args: Message = CommandArg()):
     args = args.extract_plain_text().split(' ')
@@ -59,6 +65,7 @@ async def handle(bot, event, args: Message = CommandArg()):
     if not args:
         await metro_default.finish('请提供起点和终点坐标或站名。')
     await metro_default.finish(navigate_metro(*args))
+
 
 @metro_update.handle()
 async def handle(bot, event, args: Message = CommandArg()):
@@ -70,6 +77,7 @@ async def handle(bot, event, args: Message = CommandArg()):
         await metro_update.finish(update_metro_data(url))
     else:
         await metro_update.finish(update_metro_data())
+
 
 @metro_liststations.handle()
 async def handle(bot, event):
