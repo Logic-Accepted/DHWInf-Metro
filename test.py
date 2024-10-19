@@ -2,12 +2,12 @@ import os
 import subprocess
 
 commands = [
-    ["python", "metro.py", "--metro", "100", "200", "300", "400"],
-    ["python", "metro.py", "--metro", "100", "200", "喵喵神社"],
-    ["python", "metro.py", "--metro", "喵喵神社", "100", "200"],
-    ["python", "metro.py", "--metro", "喵喵神社", "主城"],
-    ["python", "metro.py", "--liststation"],
-    ["python", "metro.py", "--update"]
+    ["python", "cli.py", "--metro", "100", "200", "300", "400"],
+    ["python", "cli.py", "--metro", "100", "200", "喵喵神社"],
+    ["python", "cli.py", "--metro", "喵喵神社", "100", "200"],
+    ["python", "cli.py", "--metro", "喵喵神社", "主城"],
+    ["python", "cli.py", "--liststation"],
+    ["python", "cli.py", "--update"]
 ]
 
 error_log = []
