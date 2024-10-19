@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from logging import warning
+from logging import getLogger
 from typing import Any, Callable, List, Literal, Dict, Tuple
 
 L10N_LANG = "zh"
@@ -9,6 +9,8 @@ L10N_LANG = "zh"
 
 DistanceMode = Literal["euclidean", "manhattan"]
 Number = int | float
+
+logger = getLogger(__name__)
 
 
 class L10nDict(dict):
@@ -24,7 +26,8 @@ class L10nDict(dict):
     def __str__(self) -> str:
         if L10N_LANG in self:
             return self[L10N_LANG]
-        warning(f"Missing l10n for {L10N_LANG}, trying random fallback...")
+        logger.warning(
+            f"Missing l10n for {L10N_LANG}, trying random fallback...")
         if len(self) > 0:
             return next(iter(self.values()))
         raise ValueError("No l10n data available")
@@ -160,40 +163,72 @@ class Line:
         self,
         *stations,
     ) -> str:
+        assert self.include(*stations), "Algo error..."
         graph = self.navi_graph
-        if graph.routes.get(stations[0].id, {}).get(stations[-1].id, 0) == 1:
-            if len(stations) == 1:
-                return "Unknown"
-            # 环线
-            # +--> +x
-            # |
-            # v
-            # +z
 
-            def cross_prod(a: Coord2D, b: Coord2D):
-                """x cross z = -y"""
-                return a.z * b.x - a.x * b.z
-            area = 0
-            for i in range(len(stations) - 1):
-                area += cross_prod(
-                    self.stations[stations[i].id].location,
-                    self.stations[stations[i + 1].id].location
+        def peek(*stations) -> List[str]:
+            if stations[0] == stations[-1]:
+                if len(stations) == 1:
+                    return ["Unknown"]
+                if len(stations) == 2:
+                    return [str(stations[1].name)]
+                logger.debug(
+                    f"Loop: {'->'.join(map(lambda x: str(x.name), stations))}"
                 )
-            if area > 0:
-                return "外环"
-            return "内环"
-        new_nodes = [
-            station
-            for station in map(
-                self.stations.get, graph.routes[stations[-1].id])
-            if station not in stations
-        ]
-        if len(new_nodes) == 0:
+                # 环线
+                # +--> +x
+                # |
+                # v
+                # +z
+
+                def cross_prod(a: Coord2D, b: Coord2D):
+                    """x cross z = -y"""
+                    return a.z * b.x - a.x * b.z
+                area = 0
+                for i in range(len(stations) - 1):
+                    area += cross_prod(
+                        self.stations[stations[i].id].location,
+                        self.stations[stations[i + 1].id].location
+                    )
+                if area > 0:
+                    return ["外环"]
+                return ["内环"]
+            new_nodes = [
+                station
+                for station in map(
+                    self.stations.get, graph.routes[stations[-1].id])
+                if station not in stations
+            ]
+            res = []
+            for node in new_nodes:
+                res.extend(peek(*stations, node))
+            if len(res) == 0:
+                return [str(stations[-1].name)]
+            return res
+
+        res = peek(*stations)
+        if len(res) == 0:
             return str(stations[-1].name)
-        return '/'.join(map(
-            lambda x: self.find_dir(*stations, x),
-            new_nodes
-        ))
+        return '/'.join(res)
+
+    def include(
+        self,
+        *stations: Station,
+    ) -> bool:
+        """
+        判断 `stations` (按顺序) 是否在这条线上
+        """
+
+        last = None
+        for station in stations:
+            if station.id not in self.stations:
+                return False
+            if last is not None:
+                if (station.id, last.id) not in self.routes and \
+                        (last.id, station.id) not in self.routes:
+                    return False
+            last = station
+        return True
 
     @classmethod
     def deserialize(
@@ -208,7 +243,7 @@ class Line:
             id, line = data
             for id in line["stations"]:
                 if id not in all_stations:
-                    warning(f"Station `{id}` not found in global bank")
+                    logger.warning(f"Station `{id}` not found in global bank")
             stations = {
                 id: all_stations[id]
                 for id in line["stations"]
@@ -314,6 +349,7 @@ class NaviGraph:
         g_score[start.id] = 0
         f_score = {id: float("inf") for id in self.nodes}
         f_score[start.id] = start.location.distance_to(end.location)
+        from_table = {}
         # Copilot generated A* algorithm, modified
         # TODO: more tests
         while len(open_set) > 0:
@@ -321,32 +357,31 @@ class NaviGraph:
                 open_set,
                 key=lambda x: f_score[x.id]
             )
-            res.append(current)
             open_set.remove(current)
+            logger.debug(f"Current: {current}")
             closed_set.add(current)
             if current == end:
-                while current in res:
-                    res.remove(current)
-                res.append(current)
-                return res, g_score[end.id]
-            no_avail_neighbors = True
+                break
             for neighbor_id in self.routes[current.id]:
                 neighbor = self.nodes[neighbor_id]
                 if neighbor in closed_set:
                     continue
-                no_avail_neighbors = False
                 tentative_g_score = g_score[current.id] + \
                     self.routes[current.id][neighbor_id]
                 if neighbor not in open_set:
                     open_set.add(neighbor)
                 elif tentative_g_score >= g_score[neighbor_id]:
                     continue
+                from_table[neighbor_id] = current
                 g_score[neighbor_id] = tentative_g_score
                 f_score[neighbor_id] = g_score[neighbor_id] + \
                     heuristic_weight * \
                     neighbor.location.distance_to(end.location)
-            if no_avail_neighbors:
-                res.remove(current)
+        current = end
+        while current != start:
+            res.append(current)
+            current = from_table[current.id]
+        logger.debug('->'.join(map(lambda x: str(x.name), res)))
         return res, g_score[end.id]
 
 

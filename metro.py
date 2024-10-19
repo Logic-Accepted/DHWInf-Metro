@@ -1,8 +1,10 @@
-import os
 import argparse
-import navigate
 import json
+import logging
+import navigate
+import os
 import requests
+
 
 from model import MetroMap
 
@@ -13,6 +15,7 @@ metro_data_url = ("https://gitee.com/brokenclouds03/dhwinf-metro-stations"
 print_header = "[INF Metro Navigation] "
 version = 0
 MAP = None
+LOG_LEVEL = logging.WARNING
 
 
 def load_metro_data(file_path=file_path) -> MetroMap:
@@ -93,10 +96,12 @@ def list_stations(metro_map: MetroMap | None = MAP) -> str:
     return res
 
 
-if not os.path.exists(file_path):
-    update_metro_data(metro_data_url)
-    if os.path.exists(tmp_file_path):
-        os.remove(tmp_file_path)
+update_metro_data(metro_data_url)
+if os.path.exists(tmp_file_path):
+    os.remove(tmp_file_path)
+
+
+logger = logging.getLogger(__name__)
 
 
 def main():
@@ -123,6 +128,12 @@ def main():
         help="更新地铁站数据，可选 URL"
     )
 
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="开启调试模式"
+    )
+
     # metro_map = MetroMap.from_dict(json.load(f))
 
     # Try loading from local data
@@ -135,6 +146,8 @@ def main():
 
     args = parser.parse_args()
     # 解析 metro 可变参数
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
     if args.metro:
         print(navigate.navigate_metro(*args.metro))
         return

@@ -1,5 +1,10 @@
+import logging
+from typing import List, Tuple
 import metro
-from model import Line
+from model import Line, MetroMap, Station
+
+
+logger = logging.getLogger(__name__)
 
 
 def soft_int_assert(value):
@@ -84,7 +89,7 @@ def navigate_metro(*args):
 
 def format_route_output(
     route,
-    metro_map,
+    metro_map: MetroMap,
     start_distance,
     end_distance,
     distance,
@@ -98,28 +103,23 @@ def format_route_output(
     else:
         output.append(f"{first_station.name} 地铁站 进站\n")
 
-    route_lines = []
-
-    def on_line(line: Line, *stations):
-        last = None
-        for station in stations:
-            if station.id not in line.stations:
-                return False
-            if last is not None:
-                if (station.id, last.id) not in line.routes and \
-                        (last.id, station.id) not in line.routes:
-                    return False
-            last = station
-        return True
+    route_lines: List[Tuple[Line, str, int, Station, Station]] = []
+    """line, direction, station_count, start, end"""
 
     while len(route) > 1:
         stataion_count = len(route) - 1
         while True:
             for line in metro_map.lines.values():
-                if on_line(line, *route[:stataion_count + 1]):
+                if line.include(*route[:stataion_count + 1]):
                     direction = line.find_dir(*route[:stataion_count + 1])
-                    route_lines.append((line, direction, stataion_count))
-                    route = route[stataion_count + 1:]
+                    route_lines.append(
+                        (line, direction, stataion_count,
+                         route[0], route[stataion_count]))
+                    logger.debug(
+                        f"{line.name}:{direction} {stataion_count} "
+                        f"{route[0].name}->{route[stataion_count].name}"
+                    )
+                    route = route[stataion_count:]
                     break
             else:
                 stataion_count -= 1
@@ -127,16 +127,16 @@ def format_route_output(
             break
 
     for i in range(len(route_lines) - 1):
-        l, d, c = route_lines[i]
+        l, d, c, s, e = route_lines[i]
         next_l = route_lines[i + 1][0]
         output.append(
-            f"{first_station.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n"
-            f"{route[i-1]} 地铁站 换乘 {next_l.name}\n"
+            f"{s.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n"
+            f"{e.name} 地铁站 换乘 {next_l.name}\n"
         )
 
-    l, d, c = route_lines[-1]
+    l, d, c, s, e = route_lines[-1]
     output.append(
-        f"{first_station.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n"
+        f"{s.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n"
         f"{dest.name} 地铁站\n"
     )
 
