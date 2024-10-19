@@ -320,6 +320,8 @@ class MapVersion:
         )
 
     def __str__(self) -> str:
+        if self.suffix == "":
+            return f"{self.format_ver}.{self.data_ver}"
         return f"{self.format_ver}.{self.data_ver}-{self.suffix}"
 
 
