@@ -10,7 +10,8 @@ from nonebot.adapters import Message
 from himibot.plugins.keep_safe import is_banned
 
 from .config import Config
-from .Metro import navigate_metro, update_station_data, liststations
+from .metro import update_metro_data, list_stations
+from .navigate import navigate_metro
 
 __plugin_meta__ = PluginMetadata(
     name="inf-metro",
@@ -66,13 +67,13 @@ async def handle(bot, event, args: Message = CommandArg()):
             return
     if args:
         url = args.extract_plain_text()
-        await metro_update.finish(update_station_data(url))
+        await metro_update.finish(update_metro_data(url))
     else:
-        await metro_update.finish(update_station_data())
+        await metro_update.finish(update_metro_data())
 
 @metro_liststations.handle()
 async def handle(bot, event):
     if event.message_type == 'group':
         if is_banned(event.group_id):
             return
-    await metro_liststations.finish(liststations())
+    await metro_liststations.finish(list_stations())
