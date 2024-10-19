@@ -53,7 +53,7 @@ def update_metro_data(url=metro_data_url):
 
         if local_data is None:
             print(print_header +
-                  f"无本地文件，已下载版本为 {remote_data.version} 的数据")
+                  f"无本地文件，已下载版本为 {remote_data.version.format_ver}.{remote_data.version.data_ver} 的数据")
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(remote_data_raw, file, ensure_ascii=False, indent=4)
             MAP = remote_data
@@ -63,11 +63,11 @@ def update_metro_data(url=metro_data_url):
             with open(file_path, 'w', encoding='utf-8') as file:
                 json.dump(remote_data_raw, file, ensure_ascii=False, indent=4)
             MAP = remote_data
-            return (f"完成版本更新：{local_data.version.data_ver}"
-                    " -> {remote_data.version.data_ver}。")
+            return (f"完成版本更新：{local_data.version.format_ver}{local_data.version.data_ver}"
+                    " -> {remote_data.version.format_ver}{remote_data.version.data_ver}。")
         else:
             return ("当前版本与远程仓库版本一致，"
-                    f"版本均为：{remote_data.version.data_ver}。")
+                    f"版本均为：{remote_data.version.format_ver}.{remote_data.version.data_ver}。")
 
     except requests.RequestException as e:
         print(f"请求出错: {e}")
