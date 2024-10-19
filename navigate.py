@@ -13,9 +13,10 @@ def soft_int_assert(value):
 
 
 def navigate_metro(*args):
-    # 通过本地文件读入信息
-    data = metro.load_metro_data(metro.file_path)
-    args = tuple(map(soft_int_assert, args[:-1]))
+    if metro.MAP is None:
+        metro.load_metro_data()
+    data = metro.MAP
+    args = tuple(map(soft_int_assert, args[:]))
     # 传入四个参数，处理为四个坐标
     if len(args) == 4:
         x_start, z_start, x_des, z_des = args

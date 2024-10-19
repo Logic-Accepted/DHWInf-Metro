@@ -17,11 +17,15 @@ MAP = None
 
 def load_metro_data(file_path=file_path) -> MetroMap:
     """
-    Will raise exceptions
+    Will raise exceptions, set global `MAP` and return it.
     """
+
+    global MAP
+
     with open(file_path, 'r', encoding='utf-8') as file:
         data = json.load(file)
-        return MetroMap.from_dict(data)
+        MAP = MetroMap.from_dict(data)
+        return MAP
 
 
 def update_metro_data(url=metro_data_url):
@@ -72,7 +76,9 @@ def update_metro_data(url=metro_data_url):
         return "更新失败：解析 JSON 出错"
 
 
-def list_stations(metro_map: MetroMap) -> str:
+def list_stations(metro_map: MetroMap | None = MAP) -> str:
+    if metro_map is None:
+        return "No metro map loaded"
     res: str = ""
     res += "已启用的地铁站如下:" + ' '.join([
         str(station.name)
@@ -121,24 +127,19 @@ def main():
 
     # Try loading from local data
     try:
-        metro_map = load_metro_data()
+        load_metro_data()
     except FileNotFoundError:
         print("File not found")
-        metro_map = None
     except Exception as e:
         print(f"An error occurred: {e}")
-        metro_map = None
 
     args = parser.parse_args()
     # 解析 metro 可变参数
     if args.metro:
-        print(navigate.navigate_metro(*args.metro, file_path))
+        print(navigate.navigate_metro(*args.metro))
         return
     if args.liststation:
-        if metro_map:
-            print(list_stations(metro_map))
-        else:
-            print("No metro map loaded")
+        print(list_stations())
         return
     if args.update:
         update_url = args.update
