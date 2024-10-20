@@ -68,19 +68,26 @@ def navigate_metro(*args):
             return "不支持的参数格式"
     except KeyError as e:
         return f"未知的车站: {str(e)}"
+    
+    if start_station == end_station:
+        total_distance = start_distance + end_distance
+        if total_distance <= 50:
+            return "当前位置距离目的地过近"
+        elif total_distance >= 200000:
+            return "位置距离地铁系统过远"
+        else:
+            return "暂无地铁乘坐方案"
+    else:
+        nodes, distance = data.navi_graph.find_route(start_station, end_station)
 
-    nodes, distance = data.navi_graph.find_route(start_station, end_station)
-
-    # TODO: 判断过近过远
-
-    formatted_output = format_route_output(
-        nodes,
-        data,
-        start_distance,
-        end_distance,
-        distance
-    )
-    return formatted_output
+        formatted_output = format_route_output(
+            nodes,
+            data,
+            start_distance,
+            end_distance,
+            distance
+        )
+        return formatted_output
 
 # 格式化输出
 
