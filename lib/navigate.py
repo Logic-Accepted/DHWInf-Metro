@@ -22,54 +22,52 @@ def navigate_metro(*args):
         load_metro_data()
     data = MAP
     args = tuple(map(soft_int_assert, args[:]))
-    # 传入四个参数，处理为四个坐标
-    if len(args) == 4:
-        x_start, z_start, x_des, z_des = args
-        current_coords = (x_start, z_start)
-        destination_coords = (x_des, z_des)
-        start_station, start_distance = data.find_nearest_station(
-            current_coords)
-        end_station, end_distance = data.find_nearest_station(
-            destination_coords)
+    try:
+        # 传入四个参数，处理为四个坐标
+        if len(args) == 4:
+            x_start, z_start, x_des, z_des = args
+            current_coords = (x_start, z_start)
+            destination_coords = (x_des, z_des)
+            start_station, start_distance = data.find_nearest_station(
+                current_coords)
+            end_station, end_distance = data.find_nearest_station(
+                destination_coords)
 
-    # 传入两个参数，处理为两个站名
-    elif len(args) == 2:
-        start_station, end_station = args
-        if type(start_station) is str and type(end_station) is str:
+        # 传入两个参数，处理为两个站名
+        elif len(args) == 2:
+            start_station, end_station = args
+            if type(start_station) is str and type(end_station) is str:
+                start_station = data.stations[start_station]
+                end_station = data.stations[end_station]
+                start_distance = 0
+                end_distance = 0
+            else:
+                return "不支持的参数格式"
+
+        # 传入三个参数，站名+2坐标
+        elif len(args) == 3 and isinstance(args[0], str):
+            start_station = args[0]
             start_station = data.stations[start_station]
-            end_station = data.stations[end_station]
+            x_des, z_des = args[1], args[2]
+            destination_coords = (x_des, z_des)
             start_distance = 0
+            end_station, end_distance = data.find_nearest_station(
+                destination_coords)
+
+        # 传入三个参数，2坐标+站名
+        elif len(args) == 3 and isinstance(args[2], str):
+            x_start, z_start = args[0], args[1]
+            end_station = args[2]
+            end_station = data.stations[end_station]
+            current_coords = (x_start, z_start)
             end_distance = 0
+            start_station, start_distance = data.find_nearest_station(
+                current_coords)
+
         else:
             return "不支持的参数格式"
-
-    # 传入三个参数，站名+2坐标
-    elif len(args) == 3 and isinstance(args[0], str):
-        start_station = args[0]
-        start_station = data.stations[start_station]
-        x_des, z_des = args[1], args[2]
-        destination_coords = (x_des, z_des)
-        start_distance = 0
-        end_station, end_distance = data.find_nearest_station(
-            destination_coords)
-
-    # 传入三个参数，2坐标+站名
-    elif len(args) == 3 and isinstance(args[2], str):
-        x_start, z_start = args[0], args[1]
-        end_station = args[2]
-        end_station = data.stations[end_station]
-        current_coords = (x_start, z_start)
-        end_distance = 0
-        start_station, start_distance = data.find_nearest_station(
-            current_coords)
-
-    else:
-        return "不支持的参数格式"
-
-    if start_station is None:
-        return f"未知的起点站 {start_station}"
-    if end_station is None:
-        return f"未知的终点站 {end_station}"
+    except KeyError as e:
+        return f"未知的车站: {str(e)}"
 
     nodes, distance = data.navi_graph.find_route(start_station, end_station)
 
