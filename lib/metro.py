@@ -77,18 +77,19 @@ def update_metro_data(url=metro_data_url):
         return "更新失败：解析 JSON 出错"
 
 
-def list_stations(metro_map: MetroMap | None = MAP) -> str:
-    if metro_map is None:
+def list_stations() -> str:
+    global MAP
+    if MAP is None:
         return "No metro map loaded"
     res: str = ""
     res += "已启用的地铁站如下:" + ' '.join([
         str(station.name)
-        for station in metro_map.stations.values()
+        for station in MAP.stations.values()
         if station.status == "enabled"
     ])
     res += "未启用的地铁站:" + ' '.join([
         str(station.name)
-        for station in metro_map.stations.values()
+        for station in MAP.stations.values()
         if station.status == "disabled"
     ])
     return res
