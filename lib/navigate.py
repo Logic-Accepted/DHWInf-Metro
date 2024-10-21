@@ -1,16 +1,16 @@
 import logging
 from typing import List, Tuple
 from .metro import load_metro_data, MAP
-from .model import Line, MetroMap, Station
+from .model import Coord2D, Line, MetroMap, Station
 
 
 logger = logging.getLogger(__name__)
 
 
-def soft_int_assert(value):
-    """把坐标试着转化成 int"""
+def soft_float_assert(value):
+    """把坐标试着转化成 float"""
     try:
-        return int(value)
+        return float(value)
     except (ValueError, TypeError):
         return value
 
@@ -21,53 +21,37 @@ def navigate_metro(*args):
     if MAP is None:
         load_metro_data()
     data = MAP
-    args = tuple(map(soft_int_assert, args[:]))
-    try:
-        # 传入四个参数，处理为四个坐标
-        if len(args) == 4:
-            x_start, z_start, x_des, z_des = args
-            current_coords = (x_start, z_start)
-            destination_coords = (x_des, z_des)
-            start_station, start_distance = data.find_nearest_station(
-                current_coords)
-            end_station, end_distance = data.find_nearest_station(
-                destination_coords)
+    args = list(map(soft_float_assert, args[:]))
 
-        # 传入两个参数，处理为两个站名
-        elif len(args) == 2:
-            start_station, end_station = args
-            if type(start_station) is str and type(end_station) is str:
-                start_station = data.stations[start_station]
-                end_station = data.stations[end_station]
-                start_distance = 0
-                end_distance = 0
-            else:
-                return "不支持的参数格式"
+    def take_pos(args) -> Tuple[Station | Coord2D, list]:
+        if len(args) == 0:
+            raise ValueError("参数不足")
+        if type(args[0]) is str:
+            return data.stations[args[0]], args[1:]
+        if len(args) < 2:
+            raise ValueError("参数不足")
+        return Coord2D(*args[:2]), args[2:]
 
-        # 传入三个参数，站名+2坐标
-        elif len(args) == 3 and isinstance(args[0], str):
-            start_station = args[0]
-            start_station = data.stations[start_station]
-            x_des, z_des = args[1], args[2]
-            destination_coords = (x_des, z_des)
-            start_distance = 0
-            end_station, end_distance = data.find_nearest_station(
-                destination_coords)
+    start, args = take_pos(args)
+    dest, _ = take_pos(args)
 
-        # 传入三个参数，2坐标+站名
-        elif len(args) == 3 and isinstance(args[2], str):
-            x_start, z_start = args[0], args[1]
-            end_station = args[2]
-            end_station = data.stations[end_station]
-            current_coords = (x_start, z_start)
-            end_distance = 0
-            start_station, start_distance = data.find_nearest_station(
-                current_coords)
+    if isinstance(start, Station):
+        start_station = start
+        start_distance = 0
+    else:
+        start_station, start_distance = data.find_nearest_station(start)
 
-        else:
-            return "不支持的参数格式"
-    except KeyError as e:
-        return f"未知的车站: {str(e)}"
+    if isinstance(dest, Station):
+        end_station = dest
+        end_distance = 0
+    else:
+        end_station, end_distance = data.find_nearest_station(dest)
+
+    if start_station is None:
+        return "无法找到起始站点"
+
+    if end_station is None:
+        return "无法找到目的站点"
 
     if start_station == end_station:
         total_distance = start_distance + end_distance
