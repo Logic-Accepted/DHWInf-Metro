@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import heapq
 from logging import getLogger
 from typing import Any, Callable, List, Literal, Dict, Tuple
 
@@ -359,56 +360,55 @@ class NaviGraph:
         self,
         start: Station,
         end: Station,
-        heuristic_weight: float = 1.0
+        heuristic_weight: float = 1.0,
+        h_func: Callable[[Station, Station],
+                         float] = lambda x, y: x.distance_to(y)
     ) -> Tuple[List[Station], float]:
         """
         寻找最短路径, 既然是地铁站那用 astar 吧
 
         启发函数: 两点间的曼哈顿距离
         """
-        res = []
-        if start == end:
-            return res, 0
-        open_set = {start}
-        closed_set = set()
-        g_score = {id: float("inf") for id in self.nodes}
-        g_score[start.id] = 0
-        f_score = {id: float("inf") for id in self.nodes}
-        f_score[start.id] = start.location.distance_to(end.location)
-        from_table = {}
-        # Copilot generated A* algorithm, modified
-        # TODO: more tests
+        came_from: Dict[Station, Station] = {}
+
+        def construct_path(last: Station) -> List[Station]:
+            res = []
+            current = last
+            while current != start:
+                res.append(current)
+                current = came_from[current]
+            res.append(start)
+            return res[::-1]
+
+        g_score: Dict[Station, float] = {
+            station: float("inf")
+            for station in self.nodes.values()
+        }
+        g_score[start] = 0
+        f_score: Dict[Station, float] = {
+            station: float("inf")
+            for station in self.nodes.values()
+        }
+        f_score[start] = h_func(start, end)
+        open_set = [(f_score[start], start)]
         while len(open_set) > 0:
-            current = min(
-                open_set,
-                key=lambda x: f_score[x.id]
-            )
-            open_set.remove(current)
-            logger.debug(f"Current: {current}")
-            closed_set.add(current)
-            if current == end:
-                break
-            for neighbor_id in self.routes[current.id]:
+            current = heapq.heappop(open_set)
+            if current[1] == end:
+                return construct_path(current[1]), g_score[end]
+
+            for neighbor_id in self.routes[current[1].id]:
                 neighbor = self.nodes[neighbor_id]
-                if neighbor in closed_set:
-                    continue
-                tentative_g_score = g_score[current.id] + \
-                    self.routes[current.id][neighbor_id]
-                if neighbor not in open_set:
-                    open_set.add(neighbor)
-                elif tentative_g_score >= g_score[neighbor_id]:
-                    continue
-                from_table[neighbor_id] = current
-                g_score[neighbor_id] = tentative_g_score
-                f_score[neighbor_id] = g_score[neighbor_id] + \
-                    heuristic_weight * \
-                    neighbor.location.distance_to(end.location)
-        current = end
-        while current != start:
-            res.append(current)
-            current = from_table[current.id]
-        logger.debug('->'.join(map(lambda x: str(x.name), res)))
-        return res, g_score[end.id]
+                tentative_g_score = g_score[current[1]] + \
+                    self.get_weight(current[1], neighbor)  # type: ignore
+                if tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current[1]
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = g_score[neighbor] + \
+                        heuristic_weight * h_func(neighbor, end)
+                    heapq.heappush(open_set, (f_score[neighbor], neighbor))
+
+        logger.warning("No route found")
+        return [], float("inf")
 
 
 @dataclass
