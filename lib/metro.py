@@ -81,18 +81,27 @@ def list_stations() -> str:
     global MAP
     if MAP is None:
         return "No metro map loaded"
-    res: str = ""
-    res += "已启用的地铁站如下:" + ' '.join([
+
+    enabled_stations = [
         str(station.name)
         for station in MAP.stations.values()
         if station.status == "enabled"
-    ])
-    res += "未启用的地铁站:" + ' '.join([
+    ]
+    disabled_stations = [
         str(station.name)
         for station in MAP.stations.values()
         if station.status == "disabled"
-    ])
+    ]
+
+    res: str = ""
+    if enabled_stations:
+        res += "已启用的地铁站如下：" + ' '.join(enabled_stations)
+    
+    if disabled_stations:
+        res += "\n" + "未启用的地铁站：" + ' '.join(disabled_stations)
+
     return res
+
 
 
 update_metro_data(metro_data_url)
