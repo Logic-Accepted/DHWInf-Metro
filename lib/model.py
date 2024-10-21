@@ -131,40 +131,18 @@ class Line:
     id: str
     stations: StationBank
     """Subset of the global station bank"""
-    routes: Dict[Tuple[str, str], bool]
+    routes: NaviGraph
     """
-    key: `(station_id_1, station_id_2)`
-
-    `True` for enabled, `False` for disabled
+    路线
     """
     name: L10nDict
-
-    @property
-    def navi_graph(self) -> NaviGraph:
-        routes = {}
-        for r, available in self.routes.items():
-            if not available:
-                continue
-            id1, id2 = r
-            if id1 not in routes:
-                routes[id1] = {id2: 1}
-            else:
-                routes[id1][id2] = 1
-            if id2 not in routes:
-                routes[id2] = {id1: 1}
-            else:
-                routes[id2][id1] = 1
-        return NaviGraph(
-            routes=routes,
-            nodes=self.stations
-        )
 
     def find_dir(
         self,
         *stations,
     ) -> str:
         assert self.include(*stations), "Algo error..."
-        graph = self.navi_graph
+        graph = self.routes
 
         def peek(*stations) -> List[str]:
             if stations[0] == stations[-1]:
@@ -224,8 +202,7 @@ class Line:
             if station.id not in self.stations:
                 return False
             if last is not None:
-                if (station.id, last.id) not in self.routes and \
-                        (last.id, station.id) not in self.routes:
+                if self.routes.get_weight(last, station) is None:
                     return False
             last = station
         return True
@@ -249,24 +226,18 @@ class Line:
                 for id in line["stations"]
                 if id in all_stations
             }
-            routes = {}
-            station_ids = [
-                id
-                for id in line["stations"]
-                if id in stations
-            ]
+
             circular = line.get("circle", False)
             if type(circular) is str:
                 circular = circular.lower() in ["true", "yes", "1"]
             routes = cls.routes_from_list(
-                station_ids=station_ids,
+                stations=[
+                    stations[id]
+                    for id in line["stations"]
+                    if id in stations
+                ],
                 circular=circular,
             )
-            routes = {
-                (id1, id2): available
-                for (id1, id2), available in routes.items()
-                if id1 in stations and id2 in stations
-            }
             return cls(
                 id=id,
                 stations=stations,
@@ -278,21 +249,29 @@ class Line:
     @classmethod
     def routes_from_list(
         cls,
-        station_ids: list[str],
+        stations: list[Station],
         circular: bool = False
-    ) -> Dict[Tuple[str, str], bool]:
+    ) -> NaviGraph:
         """
-        Notice: no station bank check
+        Notice: no station bank check (TODO: better impl?)
+        TODO: Future time cost support
         """
-        routes = {}
-        for i in range(len(station_ids) - 1):
-            station1 = station_ids[i]
-            station2 = station_ids[i + 1]
-            routes[(station1, station2)] = True
+
+        routes = NaviGraph(
+            routes={},
+            nodes={s.id: s for s in stations}
+        )
+        for i in range(len(stations) - 1):
+            station1 = stations[i]
+            station2 = stations[i + 1]
+            routes.add_route(station1, station2,
+                             station1.distance_to(station2))
         if circular:
-            station1 = station_ids[0]
-            station2 = station_ids[-1]
-            routes[(station1, station2)] = True
+            station1 = stations[0]
+            station2 = stations[-1]
+            routes.add_route(station1, station2,
+                             station1.distance_to(station2))
+
         return routes
 
 
@@ -327,9 +306,54 @@ class MapVersion:
 
 @dataclass
 class NaviGraph:
+    """
+    导航图, 图结构的抽象
+    """
     routes: Dict[str, Dict[str, float]]
     """`table[id1][id2]` 为 1 到 2 的 weight"""
     nodes: StationBank
+    """`id`: `station`"""
+
+    def __add__(self, other: NaviGraph) -> NaviGraph:
+        """
+        Merge two graphs, the latter one will overwrite the former one
+        TODO: min weight
+        """
+        nodes = {**self.nodes, **other.nodes}
+        routes = {**self.routes}
+        for id1, table in other.routes.items():
+            if id1 not in routes:
+                routes[id1] = {}
+            for id2, weight in table.items():
+                if id2 not in routes[id1]:
+                    routes[id1][id2] = weight
+        return NaviGraph(routes=routes, nodes=nodes)
+
+    def add_route(
+        self,
+        start: Station,
+        end: Station,
+        weight: float,
+        reverse: bool = True,
+    ):
+        """
+        添加路径
+        """
+        if start.id not in self.routes:
+            self.routes[start.id] = {}
+        self.routes[start.id][end.id] = weight
+        if reverse:
+            self.add_route(end, start, weight, reverse=False)
+
+    def get_weight(
+        self,
+        start: Station,
+        end: Station
+    ) -> float | None:
+        """
+        `None` for no direct route
+        """
+        return self.routes[start.id].get(end.id, None)
 
     def find_route(
         self,
@@ -402,25 +426,10 @@ class MetroMap:
         导航图
         """
         nodes = self.stations
-        routes = {}
+        graph = NaviGraph(routes={}, nodes=nodes)
         for line in self.lines.values():
-            for r, available in line.routes.items():
-                if not available:
-                    continue
-                id1, id2 = r
-                if id1 not in routes:
-                    routes[id1] = {
-                        id2: nodes[id1].distance_to(nodes[id2])
-                    }
-                else:
-                    routes[id1][id2] = nodes[id1].distance_to(nodes[id2])
-                if id2 not in routes:
-                    routes[id2] = {
-                        id1: nodes[id2].distance_to(nodes[id1])
-                    }
-                else:
-                    routes[id2][id1] = nodes[id2].distance_to(nodes[id1])
-        return NaviGraph(routes=routes, nodes=nodes)
+            graph = graph + line.routes
+        return graph
 
     def find_nearest_station(
         self,
