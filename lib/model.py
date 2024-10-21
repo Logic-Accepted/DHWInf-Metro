@@ -276,6 +276,106 @@ class Line:
         return routes
 
 
+@dataclass(kw_only=True)
+class NaviRecord:
+    """
+    导航记录, 继承必须实现 `__str__` 方法
+    """
+    type: str
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type
+        }
+
+    def __str__(self) -> str:
+        # Never
+        raise NotImplementedError()
+
+
+@dataclass(kw_only=True)
+class WalkNaviRecord(NaviRecord):
+    """
+    步行导航记录
+    """
+    start: Station | Coord2D
+    end: Station | Coord2D
+    distance: float
+    type: str = "walk"
+
+    def __str__(self) -> str:
+        if isinstance(self.start, Coord2D):
+            return f"当前位置\n↓步行{self.distance:.2f}米\n{self.end}地铁站 进站"
+        return f"由 {self.start.name} 地铁站出站\n↓步行 {self.distance:.2f} 米\n目的地"
+
+    def to_dict(self) -> dict:
+        start = str(self.start.name) if isinstance(
+            self.start, Station) else (self.start.x, self.start.z)
+        end = str(self.end.name) if isinstance(
+            self.end, Station) else (self.end.x, self.end.z)
+        return {
+            **super().to_dict(),
+            "start": start,
+            "end": end,
+            "distance": self.distance,
+        }
+
+
+@dataclass(kw_only=True)
+class MetroNaviRecord(NaviRecord):
+    """
+    地铁导航记录
+    """
+    start: Station
+    end: Station
+    line: Line
+    direction: str
+    station_count: int
+    time_cost: float
+    type: str = "metro"
+
+    def __str__(self) -> str:
+        return (
+            f"{self.start.name} 地铁站 \n"
+            f"↓ {self.line.name} {self.direction} 方向 "
+            f"乘坐 {self.station_count} 站\n"
+            f"{self.end.name} 地铁站\n"
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            **super().to_dict(),
+            "start": str(self.start.name),
+            "end": str(self.end.name),
+            "line": str(self.line.name),
+            "direction": self.direction,
+            "station_count": self.station_count,
+            "time_cost": self.time_cost,
+        }
+
+
+@dataclass(kw_only=True)
+class TransferRecord(NaviRecord):
+    """
+    地铁换乘记录
+    """
+    line_from: Line
+    line_to: Line
+    station: Station
+    type: str = "transfer"
+
+    def __str__(self) -> str:
+        return f"换乘 {self.line_to.name}\n"
+
+    def to_dict(self) -> dict:
+        return {
+            **super().to_dict(),
+            "line_from": str(self.line_from.name),
+            "line_to": str(self.line_to.name),
+            "station": str(self.station.name),
+        }
+
+
 @dataclass
 class MapVersion:
     """

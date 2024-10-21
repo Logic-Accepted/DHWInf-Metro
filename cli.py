@@ -1,9 +1,8 @@
 import argparse
 import logging
-import lib.navigate as navigate
 
 from lib.metro import (list_stations, load_metro_data,
-                       metro_data_url, update_metro_data)
+                       metro_data_url, navigate, update_metro_data)
 
 
 def main():
@@ -51,7 +50,8 @@ def main():
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     if args.metro:
-        print(navigate.navigate_metro(*args.metro))
+        # print(navigate.navigate_metro(*args.metro))
+        print(navigate(*args.metro))
         return
     if args.liststation:
         print(list_stations())

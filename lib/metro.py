@@ -5,6 +5,7 @@ import requests
 
 
 from .model import MetroMap
+from .navigate import navigate_metro
 
 file_path = "metro_data.json"
 tmp_file_path = "stationstmp.json"
@@ -96,12 +97,19 @@ def list_stations() -> str:
     res: str = ""
     if enabled_stations:
         res += "已启用的地铁站如下：" + ' '.join(enabled_stations)
-    
+
     if disabled_stations:
         res += "\n" + "未启用的地铁站：" + ' '.join(disabled_stations)
 
     return res
 
+
+def navigate(*args) -> str:
+    if MAP is None:
+        raise ValueError("No metro map loaded")
+    records = navigate_metro(MAP, *args)
+    res = '\n'.join(map(str, records))
+    return res
 
 
 update_metro_data(metro_data_url)
