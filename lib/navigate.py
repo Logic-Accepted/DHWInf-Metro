@@ -14,6 +14,7 @@ def soft_float_assert(value):
     except (ValueError, TypeError):
         return value
 
+
 # 导航逻辑实现
 
 
@@ -27,7 +28,11 @@ def navigate_metro(*args):
         if len(args) == 0:
             raise ValueError("参数不足")
         if type(args[0]) is str:
-            return data.stations[args[0]], args[1:]
+            station_name = args[0]
+            for station in data.stations.values():
+                if station.name["zh"] == station_name:
+                    return station.name["zh"], args[1:]
+            raise ValueError(f"未找到匹配的站点: {station_name}")
         if len(args) < 2:
             raise ValueError("参数不足")
         return Coord2D(*args[:2]), args[2:]
@@ -62,17 +67,13 @@ def navigate_metro(*args):
         else:
             return "暂无地铁乘坐方案"
     else:
-        nodes, distance = data.navi_graph.find_route(
-            start_station, end_station)
+        nodes, distance = data.navi_graph.find_route(start_station, end_station)
 
         formatted_output = format_route_output(
-            nodes,
-            data,
-            start_distance,
-            end_distance,
-            distance
+            nodes, data, start_distance, end_distance, distance
         )
         return formatted_output
+
 
 # 格式化输出
 
@@ -100,11 +101,17 @@ def format_route_output(
         stataion_count = len(route) - 1
         while True:
             for line in metro_map.lines.values():
-                if line.include(*route[:stataion_count + 1]):
-                    direction = line.find_dir(*route[:stataion_count + 1])
+                if line.include(*route[: stataion_count + 1]):
+                    direction = line.find_dir(*route[: stataion_count + 1])
                     route_lines.append(
-                        (line, direction, stataion_count,
-                         route[0], route[stataion_count]))
+                        (
+                            line,
+                            direction,
+                            stataion_count,
+                            route[0],
+                            route[stataion_count],
+                        )
+                    )
                     logger.debug(
                         f"{line.name}:{direction} {stataion_count} "
                         f"{route[0].name}->{route[stataion_count].name}"
@@ -126,8 +133,7 @@ def format_route_output(
 
     l, d, c, s, e = route_lines[-1]
     output.append(
-        f"{s.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n"
-        f"{dest.name} 地铁站\n"
+        f"{s.name} 地铁站 \n↓ {l.name} {d} 方向 乘坐 {c} 站\n" f"{dest.name} 地铁站\n"
     )
 
     if end_distance != 0:
@@ -138,7 +144,8 @@ def format_route_output(
     total_walk_distance = start_distance + end_distance
     if total_walk_distance != 0:
         output.append(
-            f"总计步行距离约 {total_walk_distance:.2f} 米，乘车约 {distance:.0f} 米。")
+            f"总计步行距离约 {total_walk_distance:.2f} 米，乘车约 {distance:.0f} 米。"
+        )
     else:
         output.append(f"总计乘车约 {distance:.0f} 米。")
     return "\n".join(output)
