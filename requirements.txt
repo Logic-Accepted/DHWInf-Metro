@@ -1,0 +1,2 @@
+fuzzywuzzy==0.18.0
+pypinyin==0.53.0

@@ -2,6 +2,7 @@ import logging
 from typing import List, Tuple
 from .metro import load_metro_data, MAP
 from .model import Coord2D, Line, MetroMap, Station
+from .fuzzymatching import fuzzy_match_integrated
 
 
 logger = logging.getLogger(__name__)
@@ -28,10 +29,14 @@ def navigate_metro(*args):
         if len(args) == 0:
             raise ValueError("参数不足")
         if type(args[0]) is str:
+            # return data.stations[args[0]], args[1:]
             station_name = args[0]
-            for station in data.stations.values():
-                if station.name["zh"] == station_name:
-                    return station.name["zh"], args[1:]
+            for station_id, station in data.stations.items():
+                if (
+                    station.name["zh"] == station_name
+                    or fuzzy_match_integrated(station.name["zh"], station_name) >= 60
+                ):
+                    return data.stations[station_id], args[1:]
             raise ValueError(f"未找到匹配的站点: {station_name}")
         if len(args) < 2:
             raise ValueError("参数不足")
