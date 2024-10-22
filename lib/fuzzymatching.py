@@ -1,5 +1,5 @@
 from pypinyin import lazy_pinyin
-from fuzzywuzzy import fuzz
+from thefuzz import fuzz
 
 
 def fuzzy_match_integrated(str1, str2):
