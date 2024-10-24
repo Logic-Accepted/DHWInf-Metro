@@ -1,0 +1,2 @@
+pypinyin==0.53.0
+thefuzz==0.22.1
