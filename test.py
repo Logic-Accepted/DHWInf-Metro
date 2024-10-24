@@ -32,8 +32,10 @@ def get_random_coords_value():
 
 def generate_random_coords_as_str(num):
     """用于产生指定数量个随机坐标"""
+    coords = []
     for _ in range(num):
-        return str(get_random_coords_value())
+        coords.append(str(get_random_coords_value()))
+    return coords
 
 
 def run_commands():
@@ -59,7 +61,8 @@ def delete_metro_data():
 
 
 commands = [
-    ["python", "cli.py", "--metro"] + generate_random_coords_as_str(4),
+    ["python", "cli.py", "--metro"]
+    + generate_random_coords_as_str(4),  # 生成4个随机坐标
     ["python", "cli.py", "--metro"]
     + generate_random_coords_as_str(2)
     + [get_random_station()],
